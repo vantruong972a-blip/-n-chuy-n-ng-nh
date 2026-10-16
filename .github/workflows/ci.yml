@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Kiểm tra chất lượng mã (ruff)
+        run: ruff check src app tests --select E9,F --ignore F401
+      - name: Kiểm tra import
+        run: python -c "import sys; sys.path.insert(0,'src'); import preprocess, train_supervised, unsupervised, semi_supervised, inference, monitoring"
+      - name: Chạy pytest
+        run: pytest -q

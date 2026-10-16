@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+mlruns
+logs
+tests
+.pytest_cache
+.ruff_cache
+Data/images
+Data/external
+Data/processed

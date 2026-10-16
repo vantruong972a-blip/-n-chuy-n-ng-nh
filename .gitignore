@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+mlruns/
+logs/
+models/*.joblib
+models/*.json
+Data/processed/*.csv
+Data/processed/*.json
+.pytest_cache/
+.ruff_cache/

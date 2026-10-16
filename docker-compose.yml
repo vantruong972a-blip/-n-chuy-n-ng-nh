@@ -1,0 +1,15 @@
+# Cần huấn luyện trước (để có thư mục models/), xem README.
+services:
+  api:
+    build: .
+    image: car-price-api
+    ports: ["8000:8000"]
+    volumes:
+      - ./logs:/app/logs          # giữ log dự đoán/lỗi/feedback ngoài container
+  mlflow:
+    image: car-price-api
+    depends_on: [api]
+    command: mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri file:///app/mlruns
+    ports: ["5000:5000"]
+    volumes:
+      - ./mlruns:/app/mlruns
