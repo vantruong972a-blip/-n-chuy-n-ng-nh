@@ -1,0 +1,51 @@
+{
+  "data_file": "car.csv",
+  "data_version": "7e07cc47ff0a",
+  "n_rows_clean": 205,
+  "n_features_raw": 9,
+  "numeric_features": [
+    "enginesize",
+    "horsepower",
+    "curbweight",
+    "citympg",
+    "highwaympg"
+  ],
+  "categorical_features": [
+    "fueltype",
+    "aspiration",
+    "carbody",
+    "drivewheel"
+  ],
+  "target": "price",
+  "random_state": 42,
+  "splits": [
+    {
+      "test_size": 0.4,
+      "train_pct": 60,
+      "test_pct": 40,
+      "n_train": 123,
+      "n_test": 82
+    },
+    {
+      "test_size": 0.3,
+      "train_pct": 70,
+      "test_pct": 30,
+      "n_train": 143,
+      "n_test": 62
+    },
+    {
+      "test_size": 0.2,
+      "train_pct": 80,
+      "test_pct": 20,
+      "n_train": 164,
+      "n_test": 41
+    },
+    {
+      "test_size": 0.1,
+      "train_pct": 90,
+      "test_pct": 10,
+      "n_train": 184,
+      "n_test": 21
+    }
+  ]
+}

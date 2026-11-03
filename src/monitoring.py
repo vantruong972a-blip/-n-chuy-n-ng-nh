@@ -64,10 +64,14 @@ def drift_report(ref: dict, rows: list, min_samples=MIN_SAMPLES, threshold=PSI_T
     for c, r in ref["categorical"].items():
         if c not in df:
             continue
-        cats = sorted(set(r["freq"]) | set(df[c].astype(str)))
-        e = [r["freq"].get(k, 0.0) for k in cats]
-        a = df[c].astype(str).value_counts(normalize=True)
-        p = _psi(e, [a.get(k, 0.0) for k in cats])
+        v = df[c].dropna().astype(str)           # trường tùy chọn bỏ trống không tính là một "giá trị"
+        if len(v) < min_samples:
+            continue
+        top = sorted(r["freq"], key=lambda k: -r["freq"][k])[:15]   # gộp phần còn lại thành 'khác' để PSI ổn định với cột nhiều giá trị
+        e = [r["freq"][k] for k in top] + [max(0.0, 1.0 - sum(r["freq"][k] for k in top))]
+        vc = v.value_counts(normalize=True)
+        a = [vc.get(k, 0.0) for k in top] + [max(0.0, 1.0 - sum(vc.get(k, 0.0) for k in top))]
+        p = _psi(e, a)
         out["features"][c] = {"psi": round(p, 4), "flag": p > threshold, "type": "categorical"}
     out["drifted_features"] = [k for k, v in out["features"].items() if v["flag"]]
     out["status"] = "data_drift_signal" if out["drifted_features"] else "no_signal"

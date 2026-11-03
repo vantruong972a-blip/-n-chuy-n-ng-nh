@@ -23,8 +23,8 @@ def test_each_model_selectable(trained, valid_input):
         assert p.predict(valid_input, m)["model"] == m
 
 
-@pytest.mark.parametrize("patch", [{"enginesize": "abc"}, {"enginesize": 99999}, {"carbody": "boat"},
-                                   {"citympg": None}, {"horsepower": ""}, {"unknown_col": 1}])
+@pytest.mark.parametrize("patch", [{"year": "abc"}, {"year": 99999}, {"body_type": "boat"}, {"brand": None}, {"model": ""},
+                                   {"unknown_col": 1}, {"mileage_km": float("inf")}])
 def test_invalid_inputs(trained, valid_input, patch):
     with pytest.raises(InvalidInput):
         Predictor().predict({**valid_input, **patch})

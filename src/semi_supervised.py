@@ -19,7 +19,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 import config as C
-from preprocess import build_preprocessor, get_split, load_clean
+from preprocess import build_preprocessor, get_split, load_unlabeled
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -30,18 +30,20 @@ def _rf(n_trees):
 
 
 def _ev(m, A, y):
-    p = m.predict(A)
+    p = np.expm1(m.predict(A))   # mô hình học trên log1p(giá) như các mô hình có giám sát
     return {"MAE": float(mean_absolute_error(y, p)), "RMSE": float(np.sqrt(mean_squared_error(y, p))), "R2": float(r2_score(y, p))}
 
 
 def experiment(A_tr, y_tr, A_te, y_te, A_ext, hide, seed, rounds, keep_frac, pseudo_weight, n_trees):
     rng = np.random.RandomState(seed)
+    y_raw = y_tr
+    y_tr = np.log1p(y_tr)
     n = len(y_tr)
     hidden = np.zeros(n, bool)
     hidden[rng.choice(n, int(round(n * hide)), replace=False)] = True
     A_l, y_l = A_tr[~hidden], y_tr[~hidden]
     A_pool = A_tr[hidden] if A_ext is None else np.vstack([A_tr[hidden], A_ext])
-    y_true_pool = np.r_[y_tr[hidden], np.full(0 if A_ext is None else len(A_ext), np.nan)]  # chỉ để chẩn đoán
+    y_true_pool = np.r_[y_raw[hidden], np.full(0 if A_ext is None else len(A_ext), np.nan)]  # chỉ để chẩn đoán
 
     base = _rf(n_trees).fit(A_l, y_l)
     r_base = _ev(base, A_te, y_te)
@@ -61,7 +63,7 @@ def experiment(A_tr, y_tr, A_te, y_te, A_ext, hide, seed, rounds, keep_frac, pse
         w = np.r_[w, np.full(len(pick), pseudo_weight)]
         ok = ~np.isnan(ytp[pick])
         if ok.any():
-            pseudo_err.extend(np.abs(mean[pick][ok] - ytp[pick][ok]))
+            pseudo_err.extend(np.abs(np.expm1(mean[pick][ok]) - ytp[pick][ok]))
         n_pseudo += len(pick)
         keep = np.setdiff1d(np.arange(len(pool)), pick)
         pool, ytp = pool[keep], ytp[keep]
@@ -76,26 +78,29 @@ def experiment(A_tr, y_tr, A_te, y_te, A_ext, hide, seed, rounds, keep_frac, pse
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--hide", nargs="*", type=float, default=[0.3, 0.5, 0.7, 0.9], help="tỷ lệ nhãn train bị ẩn")
-    ap.add_argument("--seeds", type=int, default=5)
+    ap.add_argument("--hide", nargs="*", type=float, default=[0.5, 0.9], help="tỷ lệ nhãn train bị ẩn")
+    ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--rounds", type=int, default=3)
     ap.add_argument("--keep-frac", type=float, default=0.5)
     ap.add_argument("--pseudo-weight", type=float, default=0.5)
-    ap.add_argument("--trees", type=int, default=200)
-    ap.add_argument("--use-external", action="store_true", help="thêm Data/external/car_unlabeled.csv vào pool không nhãn")
+    ap.add_argument("--trees", type=int, default=100)
+    ap.add_argument("--use-external", action="store_true",
+                    help="thêm Data/processed/unlabeled.csv (tin thật có giá bị loại vì không đáng tin) vào pool không nhãn")
+    ap.add_argument("--max-rows", type=int, help="dùng mẫu con theo nhóm (chạy thử)")
     a = ap.parse_args()
     C.REPORTS.mkdir(parents=True, exist_ok=True)
 
-    X_tr, X_te, y_tr, y_te = get_split(C.SERVE_TEST_SIZE)
+    from preprocess import load_clean
+    X_tr, X_te, y_tr, y_te = get_split(C.SERVE_TEST_SIZE, df=load_clean(max_rows=a.max_rows))
     pre = build_preprocessor(X_tr)
     A_tr, A_te = pre.fit_transform(X_tr), pre.transform(X_te)  # chỉ fit trên đặc trưng train
     A_ext = None
     if a.use_external:
-        if C.UNLABELED_CSV.exists():
-            ext = load_clean(C.UNLABELED_CSV, with_target=False).drop(columns=[C.TARGET], errors="ignore")
+        ext = load_unlabeled()
+        if len(ext):
             A_ext = pre.transform(ext[X_tr.columns])
         else:
-            print("Không thấy car_unlabeled.csv, bỏ qua --use-external")
+            print("Không có Data/processed/unlabeled.csv (hãy chạy preprocess.py), bỏ qua --use-external")
     rows = []
     for h in a.hide:
         for s in range(a.seeds):
@@ -117,7 +122,7 @@ def main():
     ax.bar(x - .27, summ.baseline_RMSE, .27, label="Baseline (chỉ nhãn có)")
     ax.bar(x, summ.selftrain_RMSE, .27, label="Self-training")
     ax.bar(x + .27, summ.oracle_RMSE, .27, label="Oracle (đủ nhãn)")
-    ax.set_xticks(x, [f"ẩn {h:.0%}" for h in summ.index]); ax.set_ylabel("RMSE test (trung bình các seed)")
+    ax.set_xticks(x, [f"ẩn {h:.0%}" for h in summ.index]); ax.set_ylabel("RMSE test (VND, trung bình các seed)")
     ax.set_title("Bán giám sát vs baseline"); ax.legend()
     fig.tight_layout(); fig.savefig(C.REPORTS / "semi_supervised.png", dpi=150); plt.close(fig)
 

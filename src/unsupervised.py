@@ -23,12 +23,20 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 
+SIL_N = 5000      # silhouette tính trên mẫu con cố định (tính toàn bộ ~45k điểm cần hàng GB RAM)
+DB_N = 8000       # DBSCAN chạy trên mẫu con cố định của train (không có predict, và chi phí O(n²))
+
+
+def _sil(A, lab):
+    return float(silhouette_score(A, lab, sample_size=min(SIL_N, len(A) - 1), random_state=C.RANDOM_STATE))
+
+
 def choose_k(A, k_range=range(2, 9)):
     """Chọn k theo silhouette cao nhất (kèm inertia/Davies-Bouldin để tham khảo, vẽ ở k_selection.png)."""
     rows = []
     for k in k_range:
         km = KMeans(n_clusters=k, n_init=10, random_state=C.RANDOM_STATE).fit(A)
-        rows.append({"k": k, "inertia": km.inertia_, "silhouette": silhouette_score(A, km.labels_),
+        rows.append({"k": k, "inertia": km.inertia_, "silhouette": _sil(A, km.labels_),
                      "davies_bouldin": davies_bouldin_score(A, km.labels_)})
     tab = pd.DataFrame(rows)
     return int(tab.loc[tab.silhouette.idxmax(), "k"]), tab
@@ -45,7 +53,7 @@ def choose_dbscan(A, min_samples=5, max_noise=0.2):
         ncl, noise = len(set(lab)) - (1 if -1 in lab else 0), float((lab == -1).mean())
         if ncl >= 2 and noise <= max_noise:
             mask = lab != -1
-            s = silhouette_score(A[mask], lab[mask])
+            s = _sil(A[mask], lab[mask])
             if best is None or s > best[0]:
                 best = (s, eps)
     eps = best[1] if best else float(np.percentile(d, 90))
@@ -68,24 +76,28 @@ def main():
     km = KMeans(n_clusters=k, n_init=10, random_state=C.RANDOM_STATE).fit(A_tr)
     km_tr, km_te = km.labels_, km.predict(A_te)
 
-    eps, ms, ok = choose_dbscan(A_tr)
-    db = DBSCAN(eps=eps, min_samples=ms).fit_predict(A_tr)
+    sub = np.sort(np.random.RandomState(C.RANDOM_STATE).choice(len(A_tr), min(DB_N, len(A_tr)), replace=False))
+    A_db = A_tr[sub]
+    eps, ms, ok = choose_dbscan(A_db)
+    db = DBSCAN(eps=eps, min_samples=ms).fit_predict(A_db)
     n_db, noise = len(set(db)) - (1 if -1 in db else 0), int((db == -1).sum())
     print(f"DBSCAN eps={eps:.2f} min_samples={ms} (chọn bằng lưới: {ok}) -> {n_db} cụm, {noise} điểm nhiễu")
 
     metrics = {"pca_explained_variance": evr.round(4).tolist(), "kmeans_k": k,
-               "kmeans_silhouette_train": float(silhouette_score(A_tr, km_tr)),
+               "kmeans_silhouette_train": _sil(A_tr, km_tr),
                "kmeans_davies_bouldin_train": float(davies_bouldin_score(A_tr, km_tr)),
-               "kmeans_silhouette_test_assigned": float(silhouette_score(A_te, km_te)) if len(set(km_te)) > 1 else None,
+               "kmeans_silhouette_test_assigned": _sil(A_te, km_te) if len(set(km_te)) > 1 else None,
                "dbscan_eps": eps, "dbscan_min_samples": ms, "dbscan_n_clusters": n_db,
                "dbscan_noise_points": noise, "dbscan_noise_fraction": noise / len(db),
-               "dbscan_silhouette_excl_noise": float(silhouette_score(A_tr[db != -1], db[db != -1])) if n_db >= 2 else None,
+               "dbscan_silhouette_excl_noise": _sil(A_db[db != -1], db[db != -1]) if n_db >= 2 else None, "dbscan_n_points_used": int(len(sub)), "silhouette_sample_size": SIL_N,
                "note": "Silhouette test chỉ để tham khảo khả năng khái quát; không dùng để chọn tham số."}
     (C.REPORTS / "unsupervised_metrics.json").write_text(json.dumps(metrics, indent=2, ensure_ascii=False), encoding="utf-8")
     ktab.to_csv(C.REPORTS / "kmeans_k_selection.csv", index=False)
 
+    dbfull = np.full(len(A_tr), np.nan)
+    dbfull[sub] = db
     lab = pd.concat([
-        pd.DataFrame({"row_id": X_tr.index, "set": "train", "kmeans": km_tr, "dbscan": db, "pc1": Z_tr[:, 0], "pc2": Z_tr[:, 1], "price": y_tr.values}),
+        pd.DataFrame({"row_id": X_tr.index, "set": "train", "kmeans": km_tr, "dbscan": dbfull, "pc1": Z_tr[:, 0], "pc2": Z_tr[:, 1], "price": y_tr.values}),
         pd.DataFrame({"row_id": X_te.index, "set": "test", "kmeans": km_te, "dbscan": np.nan, "pc1": Z_te[:, 0], "pc2": Z_te[:, 1], "price": y_te.values})])
     lab.to_csv(C.REPORTS / "unsupervised_labels.csv", index=False)
     summ = lab[lab.set == "train"].groupby("kmeans")["price"].agg(["count", "mean", "median", "std"]).round(1)
@@ -93,13 +105,13 @@ def main():
     print("\nGiá theo cụm K-Means (phân tích SAU phân cụm):\n", summ.to_string())
 
     fig, ax = plt.subplots(1, 3, figsize=(17, 4.8))
-    ax[0].scatter(Z_tr[:, 0], Z_tr[:, 1], c=km_tr, cmap="viridis", s=18)
-    ax[0].scatter(Z_te[:, 0], Z_te[:, 1], c=km_te, cmap="viridis", s=45, marker="x", label="test (gán cụm)")
+    ax[0].scatter(Z_tr[:, 0], Z_tr[:, 1], c=km_tr, cmap="viridis", s=6, alpha=0.5)
+    ax[0].scatter(Z_te[:, 0], Z_te[:, 1], c=km_te, cmap="viridis", s=14, marker="x", linewidths=0.6, label="test (gán cụm)")
     ax[0].set_title(f"K-Means (k={k}) trên PCA"); ax[0].legend()
-    ax[1].scatter(Z_tr[:, 0], Z_tr[:, 1], c=db, cmap="tab10", s=18)
+    ax[1].scatter(Z_tr[sub, 0], Z_tr[sub, 1], c=db, cmap="tab10", s=18)
     ax[1].set_title(f"DBSCAN (eps={eps:.2f}): {n_db} cụm, {noise} nhiễu (nhãn -1)")
-    ax[2].boxplot([y_tr.values[km_tr == c] for c in sorted(set(km_tr))], tick_labels=[f"cụm {c}" for c in sorted(set(km_tr))])
-    ax[2].set_title("Giá theo cụm K-Means (chỉ để mô tả)"); ax[2].set_ylabel(f"price ({C.PRICE_UNIT})")
+    ax[2].boxplot([y_tr.values[km_tr == c] / 1e6 for c in sorted(set(km_tr))], showfliers=False, tick_labels=[f"cụm {c}" for c in sorted(set(km_tr))])
+    ax[2].set_title("Giá theo cụm K-Means (chỉ để mô tả)"); ax[2].set_ylabel("giá (triệu VND)")
     for a in ax[:2]:
         a.set_xlabel(f"PC1 ({evr[0]:.0%})"); a.set_ylabel(f"PC2 ({evr[1]:.0%})")
     fig.tight_layout(); fig.savefig(C.REPORTS / "unsupervised.png", dpi=150); plt.close(fig)

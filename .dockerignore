@@ -11,3 +11,8 @@ tests
 Data/images
 Data/external
 Data/processed
+models/archive
+models/versions
+reports/archive_demo_simulated
+Data/raw
+Data/demo

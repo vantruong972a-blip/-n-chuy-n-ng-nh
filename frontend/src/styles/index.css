@@ -1,0 +1,66 @@
+@import '@fontsource/be-vietnam-pro/latin-400.css';
+@import '@fontsource/be-vietnam-pro/latin-500.css';
+@import '@fontsource/be-vietnam-pro/latin-600.css';
+@import '@fontsource/be-vietnam-pro/latin-700.css';
+@import '@fontsource/be-vietnam-pro/latin-800.css';
+@import '@fontsource/be-vietnam-pro/latin-ext-400.css';
+@import '@fontsource/be-vietnam-pro/latin-ext-600.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-400.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-500.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-600.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-700.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-800.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --color-ink: #0e1014;
+  --color-ink-soft: #3b4250;
+  --color-mute: #667085;
+  --color-navy: #0a2463;
+  --color-navy-deep: #06173f;
+  --color-azure: #2f6bff;
+  --color-azure-soft: #e8efff;
+  --color-haze: #f3f5f8;
+  --color-line: #e1e5eb;
+  --color-ok: #0f7a4a;
+  --color-ok-soft: #e6f5ee;
+  --color-warn: #8a5300;
+  --color-warn-soft: #fff4de;
+  --color-bad: #b42318;
+  --color-bad-soft: #fdecea;
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(14 16 20 / 0.05), 0 6px 20px -8px rgb(10 36 99 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(14 16 20 / 0.06), 0 14px 32px -12px rgb(10 36 99 / 0.28);
+}
+
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { @apply bg-white font-sans text-ink antialiased; font-feature-settings: 'tnum' 1; }
+  h1, h2, h3 { text-wrap: balance; letter-spacing: -0.02em; }
+  p { text-wrap: pretty; }
+  :focus-visible { outline: 3px solid var(--color-azure); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: var(--color-azure); color: #fff; }
+  dialog::backdrop { background: rgb(6 23 63 / 0.55); backdrop-filter: blur(2px); }
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6 lg:px-8; }
+  .card { @apply rounded-[var(--radius-card)] border border-line bg-white shadow-[var(--shadow-card)]; }
+  .input { @apply w-full min-h-11 rounded-lg border border-line bg-white px-3 py-2 text-[15px] text-ink placeholder:text-mute/70 transition-colors hover:border-ink/30 focus:border-azure focus:outline-none focus:ring-3 focus:ring-azure/25 disabled:bg-haze disabled:text-mute; }
+  .input[aria-invalid='true'] { @apply border-bad focus:ring-bad/25; }
+  .label { @apply mb-1.5 block text-sm font-medium text-ink; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.8s cubic-bezier(.4,0,.2,1) forwards; }
+.callout { opacity: 0; animation: rise 0.5s ease-out forwards; }
+.pop-in { animation: rise 0.35s ease-out both; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skeleton { background: linear-gradient(90deg, #eef0f4 25%, #f7f8fa 37%, #eef0f4 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 8px; }

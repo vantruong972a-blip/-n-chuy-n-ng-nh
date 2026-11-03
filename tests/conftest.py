@@ -12,8 +12,8 @@ sys.path.insert(0, str(ROOT))
 
 import pytest  # noqa: E402
 
-VALID = {"fueltype": "gas", "aspiration": "std", "carbody": "sedan", "drivewheel": "fwd",
-         "enginesize": 130, "horsepower": 110, "curbweight": 2400, "citympg": 28, "highwaympg": 34}
+VALID = {"brand": "toyota", "model": "vios", "year": 2018, "mileage_km": 60000, "transmission": "automatic",
+         "fuel_type": "gasoline"}
 
 
 @pytest.fixture(scope="session")
@@ -22,7 +22,15 @@ def valid_input():
 
 
 @pytest.fixture(scope="session")
-def trained():
-    """Huấn luyện nhanh (lưới nhỏ, 2 tỷ lệ) một lần cho cả phiên kiểm thử."""
+def cleaned():
+    """Chạy bước làm sạch trên TOÀN BỘ dữ liệu thật trong Data/raw/ một lần (ghi vào thư mục tạm)."""
+    import preprocess
+    preprocess.main()
+    return preprocess.load_clean()
+
+
+@pytest.fixture(scope="session")
+def trained(cleaned):
+    """Huấn luyện nhanh (lưới nhỏ, mẫu 3000 dòng thật theo nhóm, 1 tỷ lệ) một lần cho cả phiên kiểm thử."""
     import train_supervised
-    return train_supervised.run([0.3, 0.2], fast=True, use_mlflow=False)
+    return train_supervised.run([0.2], fast=True, use_mlflow=False, max_rows=3000, n_iter=2)

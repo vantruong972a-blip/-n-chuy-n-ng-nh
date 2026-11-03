@@ -1,0 +1,15 @@
+pip install -r requirements-dev.txt
+python scripts/download_data.py
+
+python src/preprocess.py
+python src/train_supervised.py
+python src/unsupervised.py
+python src/semi_supervised.py
+python scripts/make_report.py
+
+backend:  uvicorn app.main:app --reload
+mở 1 cửa sổ terminal mới rồi chạy:
+mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+chạy web:
+mlflow http://127.0.0.1:5000
+ http://127.0.0.1:8000

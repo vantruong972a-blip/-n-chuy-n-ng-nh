@@ -1,0 +1,17 @@
+{
+  "pca_explained_variance": [
+    0.6231,
+    0.0935
+  ],
+  "kmeans_k": 2,
+  "kmeans_silhouette_train": 0.2862833653486827,
+  "kmeans_davies_bouldin_train": 1.2293636103860182,
+  "kmeans_silhouette_test_assigned": 0.3303074160479471,
+  "dbscan_eps": 1.7339265000501352,
+  "dbscan_min_samples": 5,
+  "dbscan_n_clusters": 2,
+  "dbscan_noise_points": 16,
+  "dbscan_noise_fraction": 0.0975609756097561,
+  "dbscan_silhouette_excl_noise": 0.48652731559045553,
+  "note": "Silhouette test chỉ để tham khảo khả năng khái quát; không dùng để chọn tham số."
+}

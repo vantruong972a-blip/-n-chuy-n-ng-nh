@@ -1,7 +1,5 @@
-"""Tạo dữ liệu MÔ PHỎNG để chạy thử pipeline khi chưa có car.csv thật.
-
-KHÔNG dùng kết quả từ dữ liệu này cho báo cáo. Thay Data/raw/car.csv bằng
-file thật rồi chạy lại các bước.
+"""[LEGACY] Tạo dữ liệu MÔ PHỎNG (lược đồ UCI cũ) vào Data/demo/. Pipeline hiện tại KHÔNG dùng file này:
+dự án đã chuyển sang dữ liệu xe cũ Việt Nam thật (Data/raw/, xem Data/raw/SOURCES.md). Giữ lại để đối chiếu lịch sử.
 """
 import numpy as np
 import pandas as pd
@@ -36,13 +34,11 @@ def make(n, rng, with_price=True):
 
 def main():
     rng = np.random.RandomState(C.RANDOM_STATE)
-    (C.DATA / "raw").mkdir(parents=True, exist_ok=True)
-    (C.DATA / "external").mkdir(parents=True, exist_ok=True)
-    make(205, rng).to_csv(C.RAW_CSV, index=False)
-    make(150, rng, with_price=False).to_csv(C.UNLABELED_CSV, index=False)
-    (C.DATA / "raw" / "DEMO_DATA_NOTICE.txt").write_text(
-        "car.csv va car_unlabeled.csv la du lieu MO PHONG. Thay bang du lieu that.\n")
-    print("Da tao du lieu mo phong.")
+    C.DEMO_DIR.mkdir(parents=True, exist_ok=True)
+    make(205, rng).to_csv(C.DEMO_DIR / "car.csv", index=False)
+    make(150, rng, with_price=False).to_csv(C.DEMO_DIR / "car_unlabeled.csv", index=False)
+    (C.DEMO_DIR / "DEMO_DATA_NOTICE.txt").write_text("car.csv va car_unlabeled.csv la du lieu MO PHONG, khong dung de huan luyen.\n")
+    print("Da tao du lieu mo phong trong", C.DEMO_DIR)
 
 
 if __name__ == "__main__":

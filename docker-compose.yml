@@ -1,4 +1,4 @@
-# Cần huấn luyện trước (để có thư mục models/), xem README.
+# Cần huấn luyện trước (để có thư mục models/ và mlflow.db), xem README.
 services:
   api:
     build: .
@@ -9,7 +9,10 @@ services:
   mlflow:
     image: car-price-api
     depends_on: [api]
-    command: mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri file:///app/mlruns
+    # Cùng backend sqlite với src/tracking.py. Lưu ý: đường dẫn artifact trong mlflow.db là đường dẫn tuyệt đối trên
+    # máy đã huấn luyện, nên xem tham số/chỉ số thì được; xem file artifact/mô hình có thể cần chạy MLflow UI trên chính máy đó.
+    command: mlflow ui --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:////app/mlflow.db
     ports: ["5000:5000"]
     volumes:
+      - ./mlflow.db:/app/mlflow.db
       - ./mlruns:/app/mlruns

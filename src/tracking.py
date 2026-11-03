@@ -1,6 +1,7 @@
 """Bọc MLflow. Nếu chưa cài mlflow thì các hàm thành no-op (có cảnh báo), pipeline vẫn chạy."""
 import contextlib
 import warnings
+from pathlib import Path
 
 import config as C
 
@@ -38,11 +39,23 @@ def run(enabled, run_name, tags=None):
         yield r
 
 
+def _clean_params(params):
+    return {str(k): ("None" if v is None else v) for k, v in params.items()}
+
+
 def log(enabled, params=None, metrics=None, model=None, artifacts=None, model_name=None):
-        if model is not None:
-            try:
-                mlflow.sklearn.log_model(model, name=model_name or "model",
-                                     serialization_format="cloudpickle")
-            except TypeError:  # mlflow 2.x dùng artifact_path
-                mlflow.sklearn.log_model(model, artifact_path=model_name or "model",
-                                     serialization_format="cloudpickle")
+    """Ghi vào run đang mở: tham số, chỉ số, file kết quả (artifacts) và mô hình. No-op khi tắt MLflow."""
+    if not (enabled and AVAILABLE):
+        return
+    if params:
+        mlflow.log_params(_clean_params(params))
+    if metrics:
+        mlflow.log_metrics({k: float(v) for k, v in metrics.items() if v is not None})
+    for a in artifacts or []:
+        if Path(a).exists():
+            mlflow.log_artifact(str(a))
+    if model is not None:
+        try:
+            mlflow.sklearn.log_model(model, name=model_name or "model", serialization_format="cloudpickle")
+        except TypeError:  # mlflow 2.x dùng artifact_path
+            mlflow.sklearn.log_model(model, artifact_path=model_name or "model", serialization_format="cloudpickle")

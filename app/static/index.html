@@ -49,24 +49,26 @@
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
   .best { color: var(--ok); font-weight: 600; }
   .err { color: #d92d20; margin-top: 10px; font-size: 14px; }
+  .warn { color: #b54708; font-size: 13px; margin-top: 8px; }
+  .req { color: #d92d20; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Dự đoán giá xe</h1>
-  <p class="sub">Nhập thông số kỹ thuật, hệ thống dùng các mô hình đã huấn luyện để ước tính giá.</p>
+  <p class="sub">Ước tính <b>giá niêm yết</b> xe ô tô cũ tại Việt Nam (VND) từ dữ liệu tin rao thật trên bonbanh/chotot (khoảng năm 2022). Chỉ cần hãng, dòng xe và năm sản xuất; các trường khác là tùy chọn.</p>
 
   <div class="grid">
     <form class="card" id="form" autocomplete="off">
       <h2>Thông số xe</h2>
       <div class="fields" id="main"></div>
       <details id="moreBox" hidden>
-        <summary>Thông số khác</summary>
+        <summary>Thông số khác (tùy chọn)</summary>
         <div class="fields" id="more"></div>
       </details>
       <div class="row">
         <button class="primary" type="submit" id="go">Dự đoán giá</button>
-        <button type="button" id="fill">Điền giá trị trung bình</button>
+        <button type="button" id="fill">Điền ví dụ</button>
       </div>
       <div class="err" id="err"></div>
     </form>
@@ -80,41 +82,55 @@
       <div class="card" id="metricsCard" style="margin-top:16px" hidden>
         <h2 id="metricsTitle">Độ chính xác mô hình (tập test)</h2>
         <table id="metrics"></table>
-        <div class="muted" style="margin-top:8px">MAE/RMSE càng thấp càng tốt, R² càng gần 1 càng tốt.</div>
+        <div class="muted" style="margin-top:8px">MAE/RMSE tính bằng triệu VND (thấp hơn là tốt hơn); R² càng gần 1 càng tốt; medAPE = sai số tương đối trung vị. Đây là sai số trên tin rao cũ đã giữ riêng, không đảm bảo cho giá giao dịch thực tế.</div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-const KEY = ["enginesize", "horsepower", "curbweight", "citympg", "highwaympg"];
+const MAIN = ["brand", "model", "year", "mileage_km"];
 const $ = (s) => document.querySelector(s);
-let UNIT = "", UNIT_NOTE = "", VERSION = "";
-const fmt = (v) => Math.round(v).toLocaleString("en-US") + " " + UNIT;
-let META = [], MODELS = {}, current = "", last = null;
+let UNIT = "VND", UNIT_NOTE = "", META = [], MODELS = {}, current = "", last = null, BRAND_MODELS = {};
+
+const vnd = (v) => v >= 1e9 ? (v / 1e9).toFixed(2).replace(".", ",") + " tỷ" : Math.round(v / 1e6).toLocaleString("vi-VN") + " triệu";
+const full = (v) => Math.round(v).toLocaleString("vi-VN") + " " + UNIT;
+const tr = (v) => (v / 1e6).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
 
 function field(f) {
   const d = document.createElement("div");
   const l = document.createElement("label");
-  l.textContent = f.name; l.htmlFor = "f_" + f.name;
+  l.innerHTML = f.label + (f.required ? ' <span class="req">*</span>' : ""); l.htmlFor = "f_" + f.name;
   let el;
   if (f.type === "number") {
     el = document.createElement("input");
-    el.type = "number"; el.step = "any"; el.min = f.min; el.max = f.max;
-    el.placeholder = Math.round(f.median);
+    el.type = "number"; el.step = f.integer ? "1" : "any"; el.min = f.min; el.max = f.max;
+    el.placeholder = f.name === "mileage_km" ? "để trống nếu không rõ" : "";
+  } else if (f.name === "model" || f.free_text) {
+    el = document.createElement("input"); el.type = "text"; el.setAttribute("list", "dl_" + f.name);
+    el.placeholder = f.name === "model" ? "vd: vios" : "tùy chọn";
+    const dl = document.createElement("datalist"); dl.id = "dl_" + f.name;
+    if (!f.free_text) f.options.forEach((o) => dl.append(new Option(o)));
+    d.append(dl);
   } else {
     el = document.createElement("select");
+    if (!f.required) el.add(new Option("(không chọn)", ""));
     f.options.forEach((o) => el.add(new Option(o, o)));
-    el.value = f.default;
+    if (f.required) el.value = f.options[0];
   }
   el.id = "f_" + f.name; el.name = f.name;
   d.append(l, el);
-  if (f.type === "number") {
+  if (f.type === "number" && f.min !== null) {
     const h = document.createElement("div");
-    h.className = "hint"; h.textContent = `Khoảng ${f.min} – ${f.max}`;
+    h.className = "hint"; h.textContent = `Hợp lệ ${f.min} – ${f.max}`;
     d.append(h);
   }
   return d;
+}
+
+function syncModels() {
+  const dl = $("#dl_model"); if (!dl) return;
+  dl.innerHTML = ""; (BRAND_MODELS[$("#f_brand").value] || []).slice(0, 150).forEach((o) => dl.append(new Option(o)));
 }
 
 function renderTabs() {
@@ -130,45 +146,50 @@ function renderTabs() {
 function renderResult() {
   const sel = last.all.find((a) => a.model === current);
   const prices = last.all.map((a) => a.price);
-  const rows = last.all.map((a) =>
-    `<tr><td>${a.label}</td><td class="n">${fmt(a.price)}</td></tr>`).join("");
+  const rows = last.all.map((a) => `<tr><td>${a.label}</td><td class="n">${vnd(a.price)}</td></tr>`).join("");
+  const warns = (last.warnings || []).map((w) => `<div class="warn">⚠ ${w}</div>`).join("");
+  const omitted = (last.defaults_used || []).length ? `<div class="muted">Trường bỏ trống (mô hình tự xử lý như dữ liệu thiếu): ${last.defaults_used.join(", ")}</div>` : "";
   $("#out").innerHTML = `
     <div class="muted">${sel.label}</div>
-    <div class="price">${fmt(sel.price)}</div>
-    <div class="muted">Phiên bản mô hình: ${last.model_version} · ${UNIT_NOTE}</div>
-    <div class="muted">Các mô hình dao động từ ${fmt(Math.min(...prices))} đến ${fmt(Math.max(...prices))}</div>
+    <div class="price">${vnd(sel.price)}</div>
+    <div class="muted">${full(sel.price)}</div>
+    <div class="muted" style="margin-top:6px">Các mô hình dao động từ ${vnd(Math.min(...prices))} đến ${vnd(Math.max(...prices))}. Đây là ước tính, không phải báo giá.</div>
+    <div class="muted">Phiên bản mô hình: ${last.model_version}</div><div class="muted">${UNIT_NOTE}</div>
+    ${omitted}${warns}
     <table><tr><th>Mô hình</th><th class="n">Giá dự đoán</th></tr>${rows}</table>`;
 }
 
 async function init() {
   const m = await (await fetch("/api/meta")).json();
-  META = m.features; MODELS = m.models; current = m.default_model; UNIT = m.unit; UNIT_NOTE = m.unit_note; VERSION = m.model_version;
-  META.forEach((f) => (KEY.includes(f.name) ? $("#main") : $("#more")).append(field(f)));
-  if (!$("#main").children.length) META.slice(0, 6).forEach((f) => $("#main").append($("#f_" + f.name).parentElement));
+  META = m.features; MODELS = m.models; current = m.default_model; UNIT = m.unit; UNIT_NOTE = m.unit_note; BRAND_MODELS = m.brand_models || {};
+  META.forEach((f) => (MAIN.includes(f.name) ? $("#main") : $("#more")).append(field(f)));
   $("#moreBox").hidden = !$("#more").children.length;
+  $("#f_brand").addEventListener("change", syncModels); syncModels();
   renderTabs();
 
   const mj = await (await fetch("/api/metrics")).json();
   const met = mj.models || [];
   if (met.length) {
     $("#metricsCard").hidden = false;
-    $("#metricsTitle").textContent = `Độ chính xác mô hình (tập test, chia ${mj.split}, n_test=${mj.n_test})`;
+    $("#metricsTitle").textContent = `Độ chính xác mô hình (tập test giữ riêng, n=${mj.n_test.toLocaleString("vi-VN")}, chia ${mj.split})`;
     const best = Math.min(...met.map((r) => r.RMSE));
-    $("#metrics").innerHTML = `<tr><th>Mô hình</th><th class="n">MAE</th><th class="n">RMSE</th><th class="n">R²</th></tr>` +
+    $("#metrics").innerHTML = `<tr><th>Mô hình</th><th class="n">MAE (tr)</th><th class="n">RMSE (tr)</th><th class="n">R²</th><th class="n">medAPE</th></tr>` +
       met.map((r) => `<tr class="${r.RMSE === best ? "best" : ""}"><td>${r.label}</td>
-        <td class="n">${Math.round(r.MAE)}</td><td class="n">${Math.round(r.RMSE)}</td><td class="n">${r.R2.toFixed(3)}</td></tr>`).join("");
+        <td class="n">${tr(r.MAE)}</td><td class="n">${tr(r.RMSE)}</td><td class="n">${r.R2.toFixed(3)}</td><td class="n">${r.medAPE.toFixed(1)}%</td></tr>`).join("");
   }
 }
 
-$("#fill").onclick = () => META.forEach((f) => {
-  if (f.type === "number") $("#f_" + f.name).value = Math.round(f.median);
-});
+$("#fill").onclick = () => {
+  const ex = { brand: "toyota", model: "vios", year: 2018, mileage_km: 60000, transmission: "automatic", fuel_type: "gasoline" };
+  Object.entries(ex).forEach(([k, v]) => { const el = $("#f_" + k); if (el) el.value = v; });
+  syncModels();
+};
 
 $("#form").onsubmit = async (e) => {
   e.preventDefault();
   $("#err").textContent = ""; $("#go").disabled = true; $("#go").textContent = "Đang tính...";
   const values = {};
-  META.forEach((f) => (values[f.name] = $("#f_" + f.name).value));
+  META.forEach((f) => { const v = $("#f_" + f.name).value; if (v !== "") values[f.name] = v; });
   try {
     const r = await fetch("/api/predict", { method: "POST", headers: { "Content-Type": "application/json" },
                                            body: JSON.stringify({ values, model: current }) });

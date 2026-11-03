@@ -15,6 +15,25 @@ jobs:
       - name: Kiểm tra chất lượng mã (ruff)
         run: ruff check src app tests --select E9,F --ignore F401
       - name: Kiểm tra import
-        run: python -c "import sys; sys.path.insert(0,'src'); import preprocess, train_supervised, unsupervised, semi_supervised, inference, monitoring"
+        run: python -c "import sys; sys.path.insert(0,'src'); import data_sources, features, preprocess, evaluation, train_supervised, unsupervised, semi_supervised, inference, monitoring, tracking"
+      - name: Kiểm tra dữ liệu thật (tải nếu thiếu, đối chiếu SHA-256)
+        run: python scripts/download_data.py
       - name: Chạy pytest
-        run: pytest -q
+        run: python -m pytest -q
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Kiểm tra mã (ESLint)
+        run: npm run lint
+      - name: Build (TypeScript + Vite)
+        run: npm run build
