@@ -42,6 +42,7 @@ unsupervised.py / semi_supervised.py ─► reports/        models/ ─► infer
 | `src/evaluation.py` | Chỉ số, permutation importance, hiệu năng theo nhóm, ca sai lớn |
 | `src/tracking.py` | Bọc MLflow (không có mlflow thì bỏ qua và cảnh báo) |
 | `src/unsupervised.py`, `src/semi_supervised.py` | PCA/K-Means/DBSCAN; Self-Training |
+| `src/recommend.py` | Gợi ý xe (Content-Based và KNN) trên tin rao thật đã làm sạch; chi tiết xe và xe tương đồng |
 | `src/inference.py`, `src/monitoring.py` | Kiểm tra đầu vào + dự đoán; log, drift (PSI), sai số theo nhãn thực tế |
 | `app/main.py` | FastAPI: API + phục vụ giao diện React đã build (`frontend/dist`) |
 | `app/static/index.html` | Giao diện HTML cũ, vẫn truy cập được ở `/cu` |
@@ -121,11 +122,13 @@ Mở http://127.0.0.1:5000, experiment `car-price-prediction`. Mỗi (mô hình 
 
 ## 10. API và web
 ```powershell
-uvicorn app.main:app --reload       # hoặc .\scripts\start_api.ps1
+python -m uvicorn app.main:app      # hoặc .\scripts\start_api.ps1
 ```
 Web: http://127.0.0.1:8000 (giao diện React nếu đã `npm run build`, nếu chưa thì tự dùng giao diện HTML cũ; giao diện cũ luôn ở `/cu`) · Tài liệu API: http://127.0.0.1:8000/docs
 
-Nếu Windows chặn `uvicorn.exe` (Application Control), chạy bằng `python -m uvicorn app.main:app --reload`.
+Nếu Windows chặn `uvicorn.exe` (Application Control), dùng `python -m uvicorn` như trên.
+
+**Nên chạy KHÔNG có `--reload`** khi chỉ dùng web. Chế độ `--reload` theo dõi mọi file trong thư mục dự án (kể cả `frontend\node_modules` với hàng chục nghìn file, `mlruns`, `models`); trong thư mục OneDrive việc này làm máy chủ chậm, treo hoặc tự khởi động lại giữa chừng. Khi cần `--reload` để sửa code backend, giới hạn thư mục theo dõi: `python -m uvicorn app.main:app --reload --reload-dir app --reload-dir src`. Máy chủ nạp sẵn mô hình lúc khởi động (RandomForest nặng khoảng 240 MB, có thể mất vài giây đến vài chục giây trên ổ chậm); chờ dòng `Application startup complete` rồi hãy mở trang. Nên đặt dự án ngoài OneDrive (ví dụ `C:\MLOPS`) để tránh OneDrive tải file theo yêu cầu.
 
 | Endpoint | Chức năng |
 |---|---|
@@ -135,6 +138,8 @@ Nếu Windows chặn `uvicorn.exe` (Application Control), chạy bằng `python 
 | `POST /api/predict` | `{"values": {...}, "model": "random_forest"}`; trả giá VND, giá của mọi mô hình trên cùng đầu vào, `warnings`, `defaults_used` |
 | `POST /api/feedback` | Giá thực tế đến sau `{"prediction_id","actual_price"}` |
 | `GET /api/monitoring` | Số yêu cầu, độ trễ, lỗi, data drift, sai số theo nhãn thực tế |
+| `POST /api/recommend` | **Mới.** Gợi ý xe từ tin rao thật (mục 10.1) |
+| `GET /api/cars/{id}` | **Mới.** Chi tiết một tin rao kèm `similar_ids` |
 | `GET /api/model-info` | **Mới, thêm vào, không đổi endpoint cũ.** Phiên bản mô hình, thời điểm huấn luyện, phiên bản dữ liệu, số dòng train/val/test, cách chia, tinh chỉnh, thư viện; dùng cho khối "Kho mô hình" |
 
 Ví dụ: `curl -X POST http://127.0.0.1:8000/api/predict -H "Content-Type: application/json" -d "{\"values\":{\"brand\":\"toyota\",\"model\":\"vios\",\"year\":2018,\"mileage_km\":60000}}"`
@@ -148,8 +153,8 @@ Công nghệ: React 19, TypeScript, Vite, Tailwind CSS 4, Recharts, lucide-react
 |---|---|---|
 | Trang chủ | `/` | `/api/metrics`, `/api/meta` (số liệu thật, không nhập tay) |
 | Định giá ô tô | `/dinh-gia` | Biểu mẫu sinh từ `/api/meta`; gửi `POST /api/predict`; gửi giá thực tế qua `POST /api/feedback` |
-| Gợi ý xe phù hợp | `/goi-y` | **Chưa tích hợp** (xem dưới) |
-| Chi tiết xe | `/xe/:id` | **Chưa tích hợp** (xem dưới) |
+| Gợi ý xe phù hợp | `/goi-y` | `POST /api/recommend` |
+| Chi tiết xe | `/xe/:id` | `GET /api/cars/{id}` |
 | Lịch sử dự đoán | `/lich-su` | Lưu trong trình duyệt (localStorage) từ kết quả API thật, tối đa 50 lần, có nút xóa kèm xác nhận |
 | Quản trị hệ thống | `/quan-tri` | `/health`, `/api/metrics`, `/api/metrics/all`, `/api/monitoring`, `/api/model-info` |
 
@@ -158,7 +163,7 @@ Lớp gọi API nằm ở `frontend/src/services/` (`predictionService.ts`, `mon
 **Chạy khi phát triển** (hai cửa sổ PowerShell):
 ```powershell
 # Cửa sổ 1: backend
-python -m uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload --reload-dir app --reload-dir src
 # Cửa sổ 2: frontend (cần Node.js 20 trở lên)
 cd frontend
 npm install
@@ -171,16 +176,22 @@ python -m uvicorn app.main:app      # http://127.0.0.1:8000 phục vụ cả API
 ```
 Biến môi trường (xem `frontend/.env.example`): `VITE_BACKEND_URL` (địa chỉ FastAPI cho proxy khi dev), `VITE_API_BASE` (khi tách địa chỉ, cần bật CORS), `VITE_CONTACT_EMAIL`, `VITE_CONTACT_PHONE`, `VITE_REPO_URL` (chân trang; để trống thì không hiển thị, không bịa thông tin liên hệ). Kiểm tra mã: `npm run lint`, `npm run build`.
 
-**Chức năng chưa tích hợp (trung thực):** backend hiện **chưa có** API gợi ý xe, danh sách xe hay chi tiết xe, và dự án cũng chưa có kho ảnh xe có nguồn rõ ràng. Hai trang `/goi-y` và `/xe/:id` tự kiểm tra `/openapi.json`; khi chưa có endpoint, trang hiển thị "chưa tích hợp" và không hiển thị xe giả. Khi backend bổ sung đúng hợp đồng dưới đây, trang sẽ tự nhận và hiển thị kết quả, không cần sửa lại giao diện. Hợp đồng đề xuất (mới, không ảnh hưởng API cũ):
+**Gợi ý xe (`POST /api/recommend`, `GET /api/cars/{id}`).** Dữ liệu là các tin rao thật trong `Data/processed/clean.csv` (45.510 tin Bonbanh và Chợ Tốt, khoảng 2022). Mọi bộ lọc đều tùy chọn; giá tính bằng VND. Mỗi xe chỉ xuất hiện một lần dù được đăng lại nhiều tin (theo `group_id`). Không có kết quả thì trả danh sách rỗng, không bịa xe.
 
-| Endpoint (đề xuất) | Yêu cầu | Phản hồi |
-|---|---|---|
-| `POST /api/recommend` | `{ "budget_min", "budget_max" (VND), "brand", "model", "year_from", "fuel_type", "transmission", "body_type", "method": "knn" \| "content_based", "limit" }`; các bộ lọc đều tùy chọn | `{ "items": [CarListing], "method" }` |
-| `GET /api/cars/{id}` | không | `CarListing` |
+| Trường yêu cầu | Ý nghĩa |
+|---|---|
+| `budget_min`, `budget_max` | Khoảng giá (VND), lọc cứng; min không được lớn hơn max (422) |
+| `brand`, `model`, `year_from` | Lọc cứng |
+| `fuel_type`, `transmission`, `body_type` | Lọc cứng với `content_based`; là tiêu chí mềm (tính vào khoảng cách) với `knn` |
+| `method` | `content_based` (mặc định) hoặc `knn` |
+| `limit` | 1 đến 24, mặc định 12 |
 
-`CarListing`: `id`, `brand`, `model`, `variant?`, `year`, `mileage_km?`, `engine_capacity?`, `fuel_type?`, `transmission?`, `body_type?`, `origin?`, `province?`, `seats?`, `price` (VND), `image_url?`, `highlights?: string[]`, `similar_ids?: string[]` (dùng cho phần so sánh xe tương tự).
+- **Content-Based:** lọc theo mọi tiêu chí, rồi xếp hạng bằng điểm tổng hợp: độ gần giữa khoảng ngân sách (nếu có đủ min và max), xe càng mới càng tốt, càng ít km càng tốt (thiếu km thì điểm trung tính), và mức giá so với trung vị các tin cùng hãng, dòng, năm. Trọng số 0,35/0,30/0,20/0,15 là lựa chọn thiết kế của đồ án, chưa được đánh giá bằng dữ liệu hành vi người dùng.
+- **KNN:** dựng "xe lý tưởng" từ tiêu chí (giá giữa khoảng ngân sách, năm tối thiểu, các thuộc tính đã chọn), rồi tìm xe gần nhất bằng `sklearn.neighbors.NearestNeighbors` trên đặc trưng chuẩn hóa (log giá, năm, log km, dung tích, số chỗ) và one-hot (nhiên liệu, hộp số, kiểu dáng, xuất xứ).
+- Phản hồi: `{ "items": [CarListing], "method", "total" }`, trong đó `total` là số xe (đã loại tin đăng lại) khớp bộ lọc. `CarListing` gồm `id` (dạng `bonbanh-123`), `brand`, `model`, `variant?`, `year`, `mileage_km?`, `engine_capacity?`, `fuel_type?`, `transmission?`, `body_type?`, `origin?`, `province?`, `seats?`, `price`, `image_url` (luôn `null`), `highlights`, `similar_ids`, `source`, `color?`.
+- `highlights` chỉ gồm dữ kiện có trong dữ liệu. Câu "giá thấp hơn X% so với trung vị" chỉ xuất hiện khi nhóm cùng hãng, dòng, năm có từ 5 tin trở lên, giá không phân tán quá mức và mức chênh từ 5% đến 25% (chênh lớn hơn thường do khác phiên bản hoặc tin nhập sai nên bị bỏ).
 
-Ảnh chỉ hiển thị khi có `image_url` (backend chỉ nên trả ảnh có nguồn rõ ràng); không có thì hiện khung "Chưa có ảnh". Không gắn ảnh ngẫu nhiên vào một mẫu xe cụ thể.
+**Hạn chế của gợi ý:** dữ liệu không có ảnh xe và không có đường dẫn tin gốc, nên thẻ xe hiển thị khung "Chưa có ảnh xe" và không có nút xem tin gốc. Giá là giá niêm yết khoảng 2022, nên đây là công cụ khám phá và học tập, không phải danh sách xe đang bán. Tên dòng xe trong dữ liệu đôi khi gộp nhiều mẫu (ví dụ `cx`). Chất lượng gợi ý chưa được đo bằng đánh giá của người dùng.
 
 **Hạn chế:** trang Quản trị không có đăng nhập vì backend hiện không có xác thực (nên không công khai ra Internet khi chưa thêm xác thực). Kho mô hình hiển thị phiên bản đang phục vụ; MLflow Model Registry (đăng ký, chuyển giai đoạn) chưa được tích hợp. PSI chỉ có ý nghĩa khi đã có từ 30 yêu cầu dự đoán.
 
@@ -195,7 +206,7 @@ docker compose up --build                          # API (8000) + MLflow UI (500
 python -m pytest -q                                # kiểm thử (dùng python -m để đúng môi trường)
 ruff check src app tests --select E9,F --ignore F401
 ```
-`tests/` kiểm tra: dữ liệu thật (≥10.000 dòng, giá/năm/km hợp lệ, không trùng, báo cáo làm sạch khớp), quy tắc làm sạch trên bảng dựng tay, chia nhóm không rò rỉ, đặc trưng phái sinh, huấn luyện 3 mô hình, chọn theo validation, lưu/nạp mô hình, cổng triển khai, lưu bản cũ, API (thiếu/sai/ngoài phạm vi), MLflow (tham số, chỉ số, artifact, mô hình). Các test huấn luyện dùng mẫu con 3.000 dòng thật và thư mục tạm, không đụng `models/` và `reports/` thật. CI chạy ruff, import, tải/đối chiếu dữ liệu và pytest; job `frontend` chạy `npm ci`, ESLint và build.
+`tests/` kiểm tra: dữ liệu thật (≥10.000 dòng, giá/năm/km hợp lệ, không trùng, báo cáo làm sạch khớp), quy tắc làm sạch trên bảng dựng tay, chia nhóm không rò rỉ, đặc trưng phái sinh, huấn luyện 3 mô hình, chọn theo validation, lưu/nạp mô hình, cổng triển khai, lưu bản cũ, API (thiếu/sai/ngoài phạm vi), MLflow (tham số, chỉ số, artifact, mô hình). Các test huấn luyện dùng mẫu con 3.000 dòng thật và thư mục tạm, không đụng `models/` và `reports/` thật. CI chạy ruff, import, tải/đối chiếu dữ liệu và pytest; job `frontend` chạy `npm install`, ESLint và build.
 
 ## 13. Hạn chế
 - Giá rao ≠ giá giao dịch; dữ liệu ~2022 nên không phản ánh thị trường hiện nay; không dùng để ra quyết định mua bán thực.

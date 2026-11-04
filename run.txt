@@ -13,3 +13,8 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 chạy web:
 mlflow http://127.0.0.1:5000
  http://127.0.0.1:8000
+ 
+
+ Nếu máy chủ ko phản hồi chạy lần lượt: 
+python scripts\download_data.py
+python src\train_supervised.py

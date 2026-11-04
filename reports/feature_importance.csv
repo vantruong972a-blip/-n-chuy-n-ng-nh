@@ -16,23 +16,23 @@ linear_regression,mileage_km,column,3343039.9911839566,2179988.361564395
 linear_regression,province,column,1360964.8070709307,1166917.8478846413
 linear_regression,seats,column,984396.3543889523,161106.95763514691
 linear_regression,fuel_type,column,-5324157.221758962,5196408.591796739
-random_forest,[nhóm] thông số máy (engine_capacity+transmission+fuel_type+drivetrain+seats),group,1399548147.7612746,34224826.28269436
-random_forest,engine_capacity,column,1176774096.8890224,5684102.494351427
-random_forest,[nhóm] mức sử dụng (year+mileage_km),group,949885772.3977319,15259954.328892574
-random_forest,year,column,824100361.5960617,79737738.1654818
-random_forest,transmission,column,528111661.92171,154991078.93176463
-random_forest,[nhóm] định danh xe (brand+model+variant+body_type),group,476826011.03629714,33165994.590313666
-random_forest,brand,column,395466476.2710542,38768104.16189429
-random_forest,drivetrain,column,127020000.47911894,1618407.3588344536
-random_forest,[nhóm] thị trường (origin+province),group,110612730.11526199,35566419.85482327
-random_forest,fuel_type,column,109161920.83322628,44942145.352368556
-random_forest,model,column,106387901.72355719,2403098.0795730553
-random_forest,origin,column,95735888.51970112,17144775.628219847
-random_forest,body_type,column,71582049.00382173,5509762.312545657
-random_forest,variant,column,54727204.88454946,332863.05998590594
-random_forest,mileage_km,column,19171433.84472074,9131075.339641767
-random_forest,seats,column,18967286.767962318,4459737.144898346
-random_forest,province,column,3146552.3683277965,2225984.9965328164
+random_forest,[nhóm] thông số máy (engine_capacity+transmission+fuel_type+drivetrain+seats),group,1399548147.761274,34224826.282694094
+random_forest,engine_capacity,column,1176774096.889022,5684102.494351699
+random_forest,[nhóm] mức sử dụng (year+mileage_km),group,949885772.3977302,15259954.328892685
+random_forest,year,column,824100361.5960613,79737738.16548106
+random_forest,transmission,column,528111661.9217102,154991078.93176478
+random_forest,[nhóm] định danh xe (brand+model+variant+body_type),group,476826011.03629667,33165994.590313632
+random_forest,brand,column,395466476.271055,38768104.161893666
+random_forest,drivetrain,column,127020000.47911884,1618407.35883435
+random_forest,[nhóm] thị trường (origin+province),group,110612730.11526364,35566419.854823716
+random_forest,fuel_type,column,109161920.83322574,44942145.35236831
+random_forest,model,column,106387901.72355698,2403098.0795723055
+random_forest,origin,column,95735888.51970111,17144775.628220633
+random_forest,body_type,column,71582049.00382183,5509762.312545526
+random_forest,variant,column,54727204.884549595,332863.0599849304
+random_forest,mileage_km,column,19171433.844720703,9131075.33964209
+random_forest,seats,column,18967286.767962974,4459737.144898243
+random_forest,province,column,3146552.3683270216,2225984.9965332216
 xgboost,[nhóm] thông số máy (engine_capacity+transmission+fuel_type+drivetrain+seats),group,1096839784.1230125,29225617.182371136
 xgboost,engine_capacity,column,938870857.3108155,16041197.490816044
 xgboost,[nhóm] mức sử dụng (year+mileage_km),group,765474853.1684337,12586570.902222337

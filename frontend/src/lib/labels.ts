@@ -71,20 +71,20 @@ export const FIELD_GROUPS: FieldGroup[] = [
   { title: 'Thông tin bổ sung', description: 'Nguồn gốc và nơi bán.', fields: ['origin', 'province'] },
 ]
 
-export const FIELD_HELP: Record<string, { placeholder?: string; hint: string; unit?: string }> = {
-  brand: { hint: 'Chọn hãng xe có trong dữ liệu huấn luyện.' },
+export const FIELD_HELP: Record<string, { placeholder?: string; hint?: string; unit?: string }> = {
+  brand: {},
   model: { placeholder: 'Ví dụ: vios, cx5, c (C-Class)', hint: 'Gõ tên dòng xe; danh sách gợi ý đổi theo hãng đã chọn.' },
-  variant: { placeholder: 'Ví dụ: g, e, premium', hint: 'Không bắt buộc. Phiên bản chưa gặp khi huấn luyện chỉ bị cảnh báo.' },
+  variant: { placeholder: 'Ví dụ: g, e, premium' },
   year: { placeholder: 'Ví dụ: 2018', hint: 'Năm sản xuất, không phải năm đăng ký.' },
-  body_type: { hint: 'Không bắt buộc.' },
-  mileage_km: { placeholder: 'Ví dụ: 60000', hint: 'Số km trên đồng hồ. Để trống nếu không rõ; nhập 0 được coi là "chưa khai báo".', unit: 'km' },
-  engine_capacity: { placeholder: 'Ví dụ: 1,5', hint: 'Dung tích xi-lanh. Để trống, hệ thống tự điền theo dòng xe.', unit: 'lít' },
-  fuel_type: { hint: 'Không bắt buộc.' },
-  transmission: { hint: 'Không bắt buộc.' },
-  drivetrain: { hint: 'Không bắt buộc. Dữ liệu dẫn động chủ yếu có ở nguồn Bonbanh.' },
-  seats: { placeholder: 'Ví dụ: 5', hint: 'Từ 2 đến 16 chỗ. Để trống, hệ thống tự điền theo dòng xe.', unit: 'chỗ' },
-  origin: { hint: 'Không bắt buộc.' },
-  province: { hint: 'Không bắt buộc. Chỉ có ở dữ liệu Chợ Tốt.' },
+  body_type: {},
+  mileage_km: { placeholder: 'Ví dụ: 60000', hint: 'Để trống nếu không rõ; nhập 0 được coi là "chưa khai báo".', unit: 'km' },
+  engine_capacity: { placeholder: 'Ví dụ: 1,5', hint: 'Để trống, hệ thống tự điền theo dòng xe.', unit: 'lít' },
+  fuel_type: {},
+  transmission: {},
+  drivetrain: {},
+  seats: { placeholder: 'Ví dụ: 5', hint: 'Để trống, hệ thống tự điền theo dòng xe.', unit: 'chỗ' },
+  origin: {},
+  province: {},
 }
 
 export const fieldLabel = (f: FeatureMeta) => f.label || f.name

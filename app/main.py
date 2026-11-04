@@ -4,6 +4,8 @@ Chạy (từ thư mục gốc project):  uvicorn app.main:app --reload
 """
 import os
 import sys
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -11,18 +13,35 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from typing import List, Literal
+
+from pydantic import BaseModel, Field, model_validator
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 import config as C  # noqa: E402
 from inference import InvalidInput, ModelNotAvailable, Predictor  # noqa: E402
 from monitoring import Monitor, Timer  # noqa: E402
+from recommend import DataNotAvailable, load_recommender  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 # Giao diện React (frontend/): nếu đã build thì phục vụ ở "/", giao diện HTML cũ vẫn truy cập được ở "/cu".
 FRONTEND_DIST = Path(os.environ.get("MLOPS_FRONTEND_DIST", ROOT / "frontend" / "dist"))
-app = FastAPI(title="Dự đoán giá xe", version="1.1")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Nạp sẵn mô hình (RandomForest ~240 MB) và dữ liệu gợi ý ở nền khi khởi động, để lần bấm đầu tiên không bị chờ.
+    Lỗi (thiếu mô hình/dữ liệu) được bỏ qua ở đây; các endpoint vẫn báo lỗi rõ ràng khi được gọi."""
+    def _warm():
+        for fn in (get_predictor, get_recommender):
+            try:
+                fn()
+            except Exception:
+                pass
+    threading.Thread(target=_warm, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Dự đoán giá xe", version="1.1", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 if (FRONTEND_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
@@ -151,6 +170,49 @@ def feedback(body: FeedbackIn):
 def monitoring():
     p = get_predictor()
     return monitor.summary(p.ref, p.info["model_version"])
+
+
+class RecommendRequest(BaseModel):
+    """Bộ lọc gợi ý xe. Mọi trường đều tùy chọn; giá tính bằng VND."""
+    budget_min: Optional[float] = Field(None, ge=0, le=1e12)
+    budget_max: Optional[float] = Field(None, ge=0, le=1e12)
+    brand: Optional[str] = Field(None, max_length=60)
+    model: Optional[str] = Field(None, max_length=80)
+    year_from: Optional[int] = Field(None, ge=1950, le=2100)
+    fuel_type: Optional[str] = Field(None, max_length=30)
+    transmission: Optional[str] = Field(None, max_length=30)
+    body_type: Optional[str] = Field(None, max_length=30)
+    method: Literal["knn", "content_based"] = "content_based"
+    limit: int = Field(12, ge=1, le=24)
+
+    @model_validator(mode="after")
+    def _budget_order(self):
+        if self.budget_min is not None and self.budget_max is not None and self.budget_min > self.budget_max:
+            raise ValueError("Ngân sách tối thiểu không được lớn hơn ngân sách tối đa.")
+        return self
+
+
+def get_recommender():
+    try:
+        return load_recommender(C.PROCESSED / "clean.csv")
+    except DataNotAvailable as e:
+        raise HTTPException(503, str(e))
+
+
+@app.post("/api/recommend")
+def recommend(req: RecommendRequest):
+    """Gợi ý xe từ tin rao thật. Trả {items: [CarListing], method, total}; items rỗng nếu không có xe phù hợp."""
+    f = req.model_dump(exclude={"method", "limit"})
+    return get_recommender().recommend(f, req.method, req.limit)
+
+
+@app.get("/api/cars/{car_id}")
+def car_detail(car_id: str):
+    """Chi tiết một tin rao (id dạng `bonbanh-123`), kèm similar_ids là các xe tương đồng (KNN)."""
+    car = get_recommender().get(car_id)
+    if car is None:
+        raise HTTPException(404, "Không tìm thấy xe này trong dữ liệu.")
+    return car
 
 
 @app.get("/{path:path}", include_in_schema=False)

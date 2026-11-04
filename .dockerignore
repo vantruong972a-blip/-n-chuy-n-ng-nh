@@ -10,7 +10,8 @@ tests
 .ruff_cache
 Data/images
 Data/external
-Data/processed
+Data/processed/*
+!Data/processed/clean.csv
 models/archive
 models/versions
 reports/archive_demo_simulated

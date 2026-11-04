@@ -17,7 +17,8 @@ export function FormField({ feature: f, meta, value, error, disabled, brand, onC
   const uid = useId()
   const id = `f-${f.name}`
   const help = FIELD_HELP[f.name]
-  const describedBy = `${uid}-hint${error ? ` ${uid}-err` : ''}`
+  const hasHint = Boolean(help?.hint) || (f.type === 'number' && f.min != null && f.max != null)
+  const describedBy = `${hasHint ? `${uid}-hint` : ''}${error ? ` ${uid}-err` : ''}`.trim() || undefined
   const common = { id, name: f.name, disabled, 'aria-invalid': error ? (true as const) : undefined, 'aria-describedby': describedBy, 'aria-required': f.required || undefined }
 
   let control
@@ -62,7 +63,7 @@ export function FormField({ feature: f, meta, value, error, disabled, brand, onC
         {f.required ? <span className="ml-0.5 text-bad" aria-hidden> *</span> : <span className="ml-1.5 text-xs font-normal text-mute">tùy chọn</span>}
       </label>
       {control}
-      <p id={`${uid}-hint`} className="mt-1 text-xs leading-snug text-mute">{help?.hint}{range}</p>
+      {hasHint && <p id={`${uid}-hint`} className="mt-1 text-xs leading-snug text-mute">{help?.hint}{range}</p>}
       {error && <p id={`${uid}-err`} role="alert" className="mt-1 text-sm font-medium text-bad">{error}</p>}
     </div>
   )

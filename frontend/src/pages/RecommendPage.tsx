@@ -35,6 +35,7 @@ export default function RecommendPage() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [items, setItems] = useState<CarListing[] | null>(null)
+  const [total, setTotal] = useState(0)
   const [msg, setMsg] = useState<{ kind: 'notready' | 'error'; text: string } | null>(null)
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((s) => ({ ...s, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }))
   const num = (k: 'min' | 'max' | 'year') => (e: string) => /^\d{0,7}$/.test(e) && set(k, e)
@@ -63,7 +64,9 @@ export default function RecommendPage() {
       if (!(await isRecommendationAvailable())) {
         setMsg({ kind: 'notready', text: 'Máy chủ chưa có API gợi ý xe (POST /api/recommend) nên chưa thể tìm xe. Bộ lọc của bạn không bị mất.' })
       } else {
-        setItems((await recommendCars(filters)).items)
+        const res = await recommendCars(filters)
+        setItems(res.items)
+        setTotal(res.total ?? res.items.length)
       }
     } catch (x) {
       setMsg({ kind: 'error', text: toApiError(x).message })
@@ -136,7 +139,8 @@ export default function RecommendPage() {
           <div className="card p-10 text-center"><SearchX className="mx-auto size-9 text-mute" aria-hidden /><h2 className="mt-3 text-lg font-bold text-navy-deep">Không có xe nào khớp</h2><p className="mt-1 text-sm text-mute">Hãy nới rộng ngân sách hoặc bỏ bớt bộ lọc.</p></div>
         )}
         {items && items.length > 0 && (
-          <section aria-label="Kết quả gợi ý"><h2 className="mb-4 text-xl font-bold text-navy-deep">{items.length} xe phù hợp</h2>
+          <section aria-label="Kết quả gợi ý"><h2 className="mb-4 text-xl font-bold text-navy-deep">{total > items.length ? `${items.length} xe phù hợp nhất trong ${total.toLocaleString('vi-VN')} xe khớp bộ lọc` : `${items.length} xe phù hợp`}</h2>
+            <p className="-mt-2 mb-4 text-sm text-mute">Giá là giá niêm yết trên Bonbanh/Chợ Tốt, thu thập khoảng năm 2022; mỗi xe chỉ hiện một lần dù được đăng lại nhiều tin.</p>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{items.map((c) => <CarCard key={c.id} car={c} />)}</div></section>
         )}
       </div>

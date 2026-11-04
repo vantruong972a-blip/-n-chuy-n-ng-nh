@@ -22,6 +22,8 @@ export default function CarDetailPage() {
     ['Số chỗ ngồi', car.seats != null ? `${car.seats} chỗ` : null],
     ['Xuất xứ', car.origin ? valueLabel('origin', car.origin) : null],
     ['Tỉnh/thành phố', car.province ? valueLabel('province', car.province) : null],
+    ['Màu sắc', car.color ?? null],
+    ['Nguồn tin rao', car.source ? `${car.source} (giá niêm yết, thu thập khoảng 2022)` : null],
   ] : []
   return (
     <>

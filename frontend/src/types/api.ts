@@ -204,9 +204,12 @@ export interface CarListing {
   image_url?: string | null
   highlights?: string[]
   similar_ids?: string[]
+  source?: string | null
+  color?: string | null
 }
 
 export interface RecommendResponse {
   items: CarListing[]
   method: 'knn' | 'content_based'
+  total?: number
 }
