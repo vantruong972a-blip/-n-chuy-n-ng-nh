@@ -128,6 +128,35 @@ def metrics():
             "recommend_by_band": p.info.get("recommend_by_band")}
 
 
+@app.get("/api/model-strengths")
+def model_strengths():
+    """Sai số từng mô hình theo nhóm xe (giá dự đoán, tuổi xe, số km) trên tập kiểm định.
+
+    Chỉ ĐỌC reports/model_roles.csv do train_supervised.py ghi; không tính lại, không bịa số.
+    `best` = mô hình có RMSLE thấp nhất trong nhóm; `close` = mô hình đứng nhì chỉ kém dưới 3% (khác biệt không đáng kể).
+    """
+    import csv
+    path = C.REPORTS / "model_roles.csv"
+    if not path.exists():
+        return {"available": False, "reason": "Chưa có reports/model_roles.csv. Hãy huấn luyện: python src/train_supervised.py", "segments": []}
+    groups: Dict[tuple, Dict[str, Any]] = {}
+    with open(path, encoding="utf-8", newline="") as fh:
+        for r in csv.DictReader(fh):
+            try:
+                key = (r["segment_type"], r["segment"])
+                g = groups.setdefault(key, {"type": r["segment_type"], "segment": r["segment"], "n": int(float(r["n"])), "models": {}})
+                g["models"][r["model"]] = {"rmsle": round(float(r["RMSLE"]), 4), "medape": round(float(r["medAPE"]), 2)}
+            except (KeyError, ValueError):
+                continue
+    segs = []
+    for g in groups.values():
+        ranked = sorted(g["models"].items(), key=lambda kv: kv[1]["rmsle"])
+        g["best"] = ranked[0][0] if ranked else None
+        g["close"] = bool(len(ranked) > 1 and ranked[0][1]["rmsle"] > 0 and (ranked[1][1]["rmsle"] - ranked[0][1]["rmsle"]) / ranked[0][1]["rmsle"] < 0.03)
+        segs.append(g)
+    return {"available": bool(segs), "reason": None if segs else "File model_roles.csv rỗng.", "segments": segs}
+
+
 @app.get("/api/model-info")
 def model_info():
     """Thông tin phiên bản mô hình đang phục vụ (đọc từ models/model_info.json do train_supervised.py ghi)."""

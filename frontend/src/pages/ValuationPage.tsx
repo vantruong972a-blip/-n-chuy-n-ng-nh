@@ -4,6 +4,7 @@ import { CheckCircle2, History, RotateCcw, Sparkles, TriangleAlert } from 'lucid
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormField } from '../components/FormField'
 import { InputSummary } from '../components/InputSummary'
+import { ModelPicker } from '../components/ModelPicker'
 import { ModelPriceChart } from '../components/ModelPriceChart'
 import { useToast } from '../components/toastContext'
 import { Alert, Button, PageHeader, Skeleton } from '../components/ui'
@@ -14,6 +15,7 @@ import { FIELD_GROUPS, MODEL_NOTE, humanizeMessage } from '../lib/labels'
 import { parsePrefill } from '../lib/prefill'
 import { toPayload, validateForm, type FormErrors, type FormValues } from '../lib/validation'
 import { ApiError } from '../services/http'
+import { getModelStrengths } from '../services/monitoringService'
 import { getMeta, predictPrice, sendFeedback } from '../services/predictionService'
 import type { MetaResponse, PredictResponse, PredictValues } from '../types/api'
 import { toApiError } from '../hooks/useAsync'
@@ -145,6 +147,7 @@ function Result({ meta, payload, result, listedPrice }: { meta: MetaResponse; pa
 
 export default function ValuationPage() {
   const meta = useAsync(getMeta, 'meta')
+  const strengths = useAsync(getModelStrengths, 'strengths')
   const toast = useToast()
   const [search] = useSearchParams()
   const [prefill] = useState(() => parsePrefill(search))
@@ -228,16 +231,7 @@ export default function ValuationPage() {
               </div>
             </fieldset>
           ))}
-          {m && (
-            <div className="card p-5 sm:p-6">
-              <label htmlFor="mo-hinh" className="label">Mô hình dự đoán</label>
-              <select id="mo-hinh" className="input" value={modelChoice} onChange={(e) => setModelChoice(e.target.value)} disabled={busy}>
-                <option value="">Tự động: mô hình tốt nhất ({m.models[m.default_model] ?? m.default_model})</option>
-                {Object.entries(m.models).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-              </select>
-              <p className="mt-1 text-xs text-mute">Dù chọn mô hình nào, kết quả vẫn hiển thị giá của cả ba mô hình để so sánh.</p>
-            </div>
-          )}
+          {m && <ModelPicker meta={m} value={modelChoice} onChange={setModelChoice} disabled={busy} strengths={strengths.data ?? null} />}
           {apiErr && (
             <Alert kind="error" title={apiErr.isNetwork ? 'Không kết nối được máy chủ' : 'Không thể dự đoán giá'}>
               {apiErr.messages.length > 1

@@ -35,6 +35,7 @@ export interface MetaResponse {
   model_version: string
   data_version: string
   brand_models: Record<string, string[]>
+  roles?: Record<string, ModelRole | null>
 }
 
 export interface PriceRange {
@@ -289,4 +290,19 @@ export interface MlflowSummary {
   experiment: { name: string; id: string } | null
   runs: MlflowRun[]
   registry: { name: string; aliases: Record<string, string>; versions: MlflowRegistryVersion[] } | null
+}
+
+export interface StrengthSegment {
+  type: string
+  segment: string
+  n: number
+  models: Record<string, { rmsle: number | null; medape: number | null }>
+  best: string | null
+  close: boolean
+}
+
+export interface StrengthsResponse {
+  available: boolean
+  reason?: string | null
+  segments: StrengthSegment[]
 }
