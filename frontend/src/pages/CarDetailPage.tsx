@@ -1,11 +1,13 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-import { CarPlaceholder } from '../components/CarBlueprint'
+import { CarCard } from '../components/CarCard'
+import { CarImage, ImageCreditLine } from '../components/CarImage'
 import { NotIntegrated } from '../components/NotIntegrated'
 import { Alert, Button, ButtonLink, PageHeader, Skeleton } from '../components/ui'
 import { useAsync } from '../hooks/useAsync'
 import { formatDecimal, formatInt, formatVnd, formatVndFull } from '../lib/format'
 import { formatBrand, formatModel, valueLabel } from '../lib/labels'
+import { valuationLink } from '../lib/prefill'
 import { getCarDetail, isCarDetailAvailable } from '../services/recommendationService'
 
 export default function CarDetailPage() {
@@ -41,18 +43,28 @@ export default function CarDetailPage() {
         {car && (
           <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
             <div className="card overflow-hidden">
-              <div className="aspect-[2/1] bg-haze">{car.image_url ? <img src={car.image_url} alt={`${formatBrand(car.brand)} ${formatModel(car.model)}`} className="size-full object-cover" /> : <CarPlaceholder className="size-full" />}</div>
-              {!car.image_url && <p className="px-5 py-3 text-xs text-mute">Chưa có ảnh thật của xe này.</p>}
+              <div className="aspect-[2/1]"><CarImage car={car} variant="detail" /></div>
+              <ImageCreditLine car={car} />
             </div>
             <div className="card p-6">
-              <p className="text-sm text-mute">Giá tham khảo</p>
+              <p className="text-sm text-mute">Giá niêm yết của tin rao</p>
               <p className="text-4xl font-extrabold text-navy-deep">{formatVnd(car.price)}</p>
               <p className="text-sm text-mute">{formatVndFull(car.price)}</p>
               <dl className="mt-6 divide-y divide-line text-sm">
                 {specs.filter(([, v]) => v).map(([k, v]) => <div key={k} className="flex justify-between gap-4 py-2.5"><dt className="text-mute">{k}</dt><dd className="font-semibold text-ink">{v}</dd></div>)}
               </dl>
+              <ButtonLink to={valuationLink(car)} className="mt-6 h-12 w-full text-base">Định giá xe này bằng mô hình</ButtonLink>
+              <ButtonLink to={`/goi-y?like=${encodeURIComponent(car.id)}`} variant="secondary" className="mt-3 h-12 w-full text-base">Gợi ý xe giống xe này</ButtonLink>
+              <p className="mt-2 text-xs leading-relaxed text-mute">Điền sẵn thông tin xe sang trang Định giá, rồi so giá niêm yết với giá do mô hình dự đoán. Giá niêm yết khoảng năm 2022.</p>
             </div>
           </div>
+        )}
+        {car && car.similar && car.similar.length > 0 && (
+          <section aria-labelledby="xe-tuong-tu" className="pt-4">
+            <h2 id="xe-tuong-tu" className="text-xl font-bold text-navy-deep">Xe tương tự</h2>
+            <p className="mb-4 mt-1 text-sm text-mute">Các tin có giá và đặc điểm gần nhất (KNN), không tính chính xe này và các tin đăng lại của nó.</p>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{car.similar.map((c) => <CarCard key={c.id} car={c} />)}</div>
+          </section>
         )}
       </div>
     </>

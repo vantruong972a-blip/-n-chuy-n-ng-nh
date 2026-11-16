@@ -102,3 +102,53 @@ def build_preprocessor(X=None, min_frequency: int = 20) -> Pipeline:
                                               sparse_output=False))])
     ct = ColumnTransformer([("num", num_pipe, NUM_FEATURES), ("cat", cat_pipe, CAT_FEATURES)])
     return Pipeline([("fe", FeatureEngineer()), ("fill", GroupMedianImputer()), ("ct", ct)])
+
+
+class DepreciationFeatures(BaseEstimator, TransformerMixin):
+    """Đặc trưng riêng cho Linear Regression: mô hình tuyến tính chỉ học được quy luật cộng/nhân trong log-giá, nên ta đưa vào
+    đúng các đại lượng mà quy luật khấu hao cần:
+      - tuổi xe, tuổi² (giá giảm nhanh ở những năm đầu rồi chậm lại), log(số km) và log(số km)²,
+      - tương tác tuổi x dung tích, tuổi x log(km),
+      - MỖI HÃNG có độ dốc khấu hao riêng: hãng x tuổi và hãng x log(km) (Toyota giữ giá khác Mercedes).
+    Danh sách hãng học từ train (chỉ hãng có >= min_brand tin); hãng hiếm dùng độ dốc chung. Không dùng giá => không rò rỉ nhãn.
+    Đầu vào: đầu ra của FeatureEngineer (sau GroupMedianImputer)."""
+
+    def __init__(self, min_brand=150):
+        self.min_brand = min_brand
+
+    def fit(self, X, y=None):
+        vc = X["brand"].value_counts()
+        self.brands_ = sorted(vc[vc >= self.min_brand].index)
+        return self
+
+    def transform(self, X):
+        age = X["car_age"].astype(float)
+        rep = X["km_reported"].astype(float)
+        lkm = np.log1p(X["mileage_km"].fillna(0).astype(float)) * rep
+        leng = np.log(X["engine_capacity"].astype(float).clip(lower=0.5))
+        o = {"age": age, "age2": age ** 2, "lkm": lkm, "lkm2": lkm ** 2, "age_x_lkm": age * lkm,
+             "log_engine": leng, "age_x_engine": age * leng, "seats": X["seats"].astype(float)}
+        for b in self.brands_:
+            m = (X["brand"] == b).astype(float)
+            o[f"age@{b}"] = m * age
+            o[f"lkm@{b}"] = m * lkm
+        return pd.DataFrame(o, index=X.index)
+
+    def get_feature_names_out(self, input_features=None):
+        names = ["age", "age2", "lkm", "lkm2", "age_x_lkm", "log_engine", "age_x_engine", "seats"]
+        for b in getattr(self, "brands_", []):
+            names += [f"age@{b}", f"lkm@{b}"]
+        return np.array(names, dtype=object)
+
+
+def build_linear_preprocessor(min_frequency: int = 10) -> Pipeline:
+    """Tiền xử lý dành cho Linear Regression = đặc trưng khấu hao (DepreciationFeatures) + one-hot các biến phân loại
+    + các số gốc đã chuẩn hóa. Cùng đầu vào thô như build_preprocessor nên API không đổi."""
+    dep = Pipeline([("dep", DepreciationFeatures()), ("sc", StandardScaler())])
+    num_pipe = Pipeline([("imp", SimpleImputer(strategy="median")), ("sc", StandardScaler())])
+    cat_pipe = Pipeline([("imp", SimpleImputer(strategy="constant", fill_value="unknown")),
+                         ("oh", OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=min_frequency,
+                                              sparse_output=False))])
+    ct = ColumnTransformer([("dep", dep, NUM_FEATURES + ["brand"]), ("num", num_pipe, ["year", "km_reported"]),
+                            ("cat", cat_pipe, CAT_FEATURES)])
+    return Pipeline([("fe", FeatureEngineer()), ("fill", GroupMedianImputer()), ("ct", ct)])

@@ -1,15 +1,16 @@
 import { useState, type FormEvent } from 'react'
-import { SearchX } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { SearchX, X } from 'lucide-react'
 import { CarCard } from '../components/CarCard'
 import { NotIntegrated } from '../components/NotIntegrated'
 import { Alert, Button, PageHeader, Skeleton } from '../components/ui'
 import { useAsync, toApiError } from '../hooks/useAsync'
-import { formatBrand, valueLabel } from '../lib/labels'
+import { formatBrand, formatModel, valueLabel } from '../lib/labels'
 import { getMeta } from '../services/predictionService'
-import { isRecommendationAvailable, recommendCars } from '../services/recommendationService'
+import { getCarDetail, isRecommendationAvailable, recommendCars } from '../services/recommendationService'
 import type { CarListing, CategoryFeature, MetaResponse, RecommendFilters } from '../types/api'
 
-interface Form { min: string; max: string; brand: string; model: string; year: string; fuel_type: string; transmission: string; body_type: string; method: 'knn' | 'content_based' }
+interface Form { min: string; max: string; brand: string; model: string; year: string; fuel_type: string; transmission: string; body_type: string; method: 'knn' | 'content_based' | 'rule_based' }
 const EMPTY: Form = { min: '', max: '', brand: '', model: '', year: '', fuel_type: '', transmission: '', body_type: '', method: 'content_based' }
 
 const cat = (m: MetaResponse | undefined, name: string) => m?.features.find((f): f is CategoryFeature => f.name === name && f.type === 'category')
@@ -31,11 +32,15 @@ function Select({ id, label, meta, name, value, onChange }: { id: string; label:
 export default function RecommendPage() {
   const meta = useAsync(getMeta, 'meta')
   const cap = useAsync(isRecommendationAvailable, 'cap-recommend')
+  const [search, setSearch] = useSearchParams()
+  const likedId = (search.get('like') ?? '').slice(0, 60)
+  const liked = useAsync(async () => (likedId ? await getCarDetail(likedId) : null), `like-${likedId}`)
   const [f, setF] = useState<Form>(EMPTY)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [items, setItems] = useState<CarListing[] | null>(null)
   const [total, setTotal] = useState(0)
+  const [info, setInfo] = useState<{ notes: string[]; suggestions: string[]; field: 'brand' | 'model' | null }>({ notes: [], suggestions: [], field: null })
   const [msg, setMsg] = useState<{ kind: 'notready' | 'error'; text: string } | null>(null)
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((s) => ({ ...s, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }))
   const num = (k: 'min' | 'max' | 'year') => (e: string) => /^\d{0,7}$/.test(e) && set(k, e)
@@ -54,12 +59,13 @@ export default function RecommendPage() {
     if (Object.keys(e).length) return
     const filters: RecommendFilters = {
       method: f.method, limit: 12,
+      ...(likedId && f.method === 'content_based' && { liked_ids: [likedId] }),
       ...(lo != null && { budget_min: lo * 1e6 }), ...(hi != null && { budget_max: hi * 1e6 }),
       ...(f.brand && { brand: f.brand }), ...(f.model.trim() && { model: f.model.trim().toLowerCase() }),
       ...(f.year && { year_from: Number(f.year) }), ...(f.fuel_type && { fuel_type: f.fuel_type }),
       ...(f.transmission && { transmission: f.transmission }), ...(f.body_type && { body_type: f.body_type }),
     }
-    setBusy(true); setMsg(null); setItems(null)
+    setBusy(true); setMsg(null); setItems(null); setInfo({ notes: [], suggestions: [], field: null })
     try {
       if (!(await isRecommendationAvailable())) {
         setMsg({ kind: 'notready', text: 'Máy chủ chưa có API gợi ý xe (POST /api/recommend) nên chưa thể tìm xe. Bộ lọc của bạn không bị mất.' })
@@ -67,6 +73,7 @@ export default function RecommendPage() {
         const res = await recommendCars(filters)
         setItems(res.items)
         setTotal(res.total ?? res.items.length)
+        setInfo({ notes: res.notes ?? [], suggestions: res.suggestions ?? [], field: res.suggestion_for ?? null })
       }
     } catch (x) {
       setMsg({ kind: 'error', text: toApiError(x).message })
@@ -115,10 +122,25 @@ export default function RecommendPage() {
             <Select id="hop-so" label="Hộp số" meta={meta.data} name="transmission" value={f.transmission} onChange={(v) => set('transmission', v)} />
             <Select id="kieu-dang" label="Kiểu dáng xe" meta={meta.data} name="body_type" value={f.body_type} onChange={(v) => set('body_type', v)} />
           </div>
+          {likedId && (
+            <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-navy bg-azure-soft p-4 text-sm">
+              <span className="font-semibold text-ink">Gợi ý các xe giống xe bạn thích:</span>
+              {liked.loading ? <span className="text-mute">đang tải…</span> : liked.data
+                ? <span className="font-semibold text-navy-deep">{formatBrand(liked.data.brand)} {formatModel(liked.data.model)} {liked.data.year}</span>
+                : <span className="text-bad">không tìm thấy xe mã {likedId}</span>}
+              <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-full border border-line bg-white px-3 text-xs font-semibold text-navy hover:border-navy"
+                onClick={() => { const n = new URLSearchParams(search); n.delete('like'); setSearch(n, { replace: true }) }}><X className="size-3.5" aria-hidden />Bỏ xe này</button>
+              {f.method !== 'content_based' && <span className="basis-full text-xs text-mute">Xe yêu thích chỉ dùng với cách “Theo hồ sơ nội dung (Content-Based)”.</span>}
+            </div>
+          )}
           <fieldset className="mt-6">
             <legend className="label">Cách gợi ý</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {([['content_based', 'Theo nhu cầu của bạn', 'Content-Based Filtering: so khớp tiêu chí bạn chọn với đặc điểm xe.'], ['knn', 'Xe tương đồng về giá và đặc điểm', 'KNN: tìm các xe gần nhất trong không gian đặc trưng.']] as const).map(([v, t, d]) => (
+            <div className="grid gap-3 lg:grid-cols-3">
+              {([
+                ['content_based', 'Theo hồ sơ nội dung (Content-Based)', 'Dựng hồ sơ từ tiêu chí hoặc xe bạn thích (hãng, dòng, nhiên liệu, hộp số, kiểu dáng, giá, năm, km), rồi xếp xe theo độ tương đồng.'],
+                ['rule_based', 'Lọc theo tiêu chí và chấm điểm', 'Chỉ giữ xe khớp mọi tiêu chí bạn chọn, xếp theo độ mới, số km và mức giá.'],
+                ['knn', 'Xe tương đồng về giá và đặc điểm (KNN)', 'Tìm các xe gần nhất trong không gian đặc trưng.'],
+              ] as const).map(([v, t, d]) => (
                 <label key={v} className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors ${f.method === v ? 'border-navy bg-azure-soft' : 'border-line hover:border-ink/30'}`}>
                   <input type="radio" name="cach" className="mt-1 size-4 accent-navy" checked={f.method === v} onChange={() => set('method', v)} />
                   <span><span className="block text-sm font-semibold text-ink">{t}</span><span className="block text-xs text-mute">{d}</span></span>
@@ -128,13 +150,28 @@ export default function RecommendPage() {
           </fieldset>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Button type="submit" loading={busy} className="h-12 px-8 text-base">Tìm xe phù hợp</Button>
-            <Button variant="ghost" onClick={() => { setF(EMPTY); setErrors({}); setItems(null); setMsg(null) }}>Xóa bộ lọc</Button>
+            <Button variant="ghost" onClick={() => { setF(EMPTY); setErrors({}); setItems(null); setMsg(null); setInfo({ notes: [], suggestions: [], field: null }) }}>Xóa bộ lọc</Button>
           </div>
         </form>
 
         {msg && (msg.kind === 'notready'
           ? <Alert kind="info" title="Chưa thể tìm xe">{msg.text}</Alert>
           : <Alert kind="error" title="Không tìm được xe">{msg.text}</Alert>)}
+        {info.notes.length > 0 && (
+          <Alert kind="info" title={items && items.length === 0 ? 'Không tìm thấy tên bạn nhập' : 'Đã khớp tên gần đúng'}>
+            <ul className="list-disc space-y-1 pl-5">{info.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+            {info.suggestions.length > 0 && info.field && (
+              <p className="mt-3 flex flex-wrap items-center gap-2">
+                <span>Thử:</span>
+                {info.suggestions.map((sg) => (
+                  <button key={sg} type="button" className="min-h-9 rounded-full border border-line bg-white px-3 text-sm font-semibold text-navy hover:border-navy hover:bg-azure-soft"
+                    onClick={() => { set(info.field as 'brand' | 'model', sg); setInfo({ notes: [], suggestions: [], field: null }); setItems(null) }}>{sg}</button>
+                ))}
+                <span className="text-xs text-mute">(bấm để điền vào bộ lọc, rồi bấm “Tìm xe phù hợp”)</span>
+              </p>
+            )}
+          </Alert>
+        )}
         {items && items.length === 0 && (
           <div className="card p-10 text-center"><SearchX className="mx-auto size-9 text-mute" aria-hidden /><h2 className="mt-3 text-lg font-bold text-navy-deep">Không có xe nào khớp</h2><p className="mt-1 text-sm text-mute">Hãy nới rộng ngân sách hoặc bỏ bớt bộ lọc.</p></div>
         )}

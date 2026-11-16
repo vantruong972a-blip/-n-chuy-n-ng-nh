@@ -26,13 +26,15 @@ import numpy as np
 import pandas as pd
 import sklearn
 from sklearn.base import clone
+from sklearn.metrics import make_scorer
 from sklearn.model_selection import GroupKFold, ParameterGrid, RandomizedSearchCV
 
 import config as C
 import evaluation as E
 import monitoring
+import roles as R
 import tracking
-from model_registry import LABELS, get_specs, make_pipeline
+from model_registry import LABELS, ROLES, get_specs, make_pipeline
 from preprocess import data_fingerprint, get_split3, load_clean
 
 matplotlib.use("Agg")
@@ -45,24 +47,36 @@ def _strip(params):
     return {k.replace("model__regressor__", "").replace("pre__ct__cat__oh__", "onehot_"): v for k, v in params.items()}
 
 
-def fit_model(est, X_tr, y_tr, g_tr, X_va, y_va, grid, tune, n_iter, cv, log_target=True):
-    """Baseline + tuned trên train, so sánh trên validation. Trả về dict kết quả (chưa đụng tới test)."""
+# Tinh chỉnh theo RMSLE (sai số tương đối) và ghi thêm RMSE theo VND để đối chiếu: xem evaluation.rmsle_score.
+CV_SCORING = {"rmsle": make_scorer(E.rmsle_score, greater_is_better=False),
+              "rmse": "neg_root_mean_squared_error"}
+
+
+def fit_model(est, X_tr, y_tr, g_tr, X_va, y_va, grid, tune, n_iter, cv, log_target=True, name=None):
+    """Baseline + tuned trên train, so sánh trên validation. Trả về dict kết quả (chưa đụng tới test).
+    Chọn baseline hay tuned theo RMSLE trên validation; ghi kèm val_pred của cấu hình được chọn (mô hình fit CHỈ trên train)."""
     t0 = time.perf_counter()
-    base = make_pipeline(clone(est), log_target=log_target).fit(X_tr, y_tr)
-    vb = E.metrics(y_va, base.predict(X_va))
-    out = {"baseline_val": vb, "tuned_val": None, "cv_rmse": None, "cv_rmse_std": None, "best_params": {}}
+    base = make_pipeline(clone(est), log_target=log_target, name=name).fit(X_tr, y_tr)
+    pb = base.predict(X_va)
+    vb = E.metrics(y_va, pb)
+    out = {"baseline_val": vb, "tuned_val": None, "cv_rmse": None, "cv_rmse_std": None, "cv_rmsle": None, "best_params": {}}
+    ptuned = None
     if tune and grid:
         k = min(n_iter, len(ParameterGrid(grid)))
-        gs = RandomizedSearchCV(make_pipeline(clone(est), log_target=log_target), grid, n_iter=k, cv=cv,
-                                scoring="neg_root_mean_squared_error", random_state=C.RANDOM_STATE, refit=True, n_jobs=1)
+        gs = RandomizedSearchCV(make_pipeline(clone(est), log_target=log_target, name=name), grid, n_iter=k, cv=cv,
+                                scoring=CV_SCORING, refit="rmsle", random_state=C.RANDOM_STATE, n_jobs=1)
         gs.fit(X_tr, y_tr, groups=g_tr)
-        out.update(cv_rmse=float(-gs.best_score_), cv_rmse_std=float(gs.cv_results_["std_test_score"][gs.best_index_]),
-                   tuned_val=E.metrics(y_va, gs.best_estimator_.predict(X_va)), tuned_params=gs.best_params_)
+        bi = gs.best_index_
+        ptuned = gs.best_estimator_.predict(X_va)
+        out.update(cv_rmsle=float(-gs.cv_results_["mean_test_rmsle"][bi]), cv_rmse=float(-gs.cv_results_["mean_test_rmse"][bi]),
+                   cv_rmse_std=float(gs.cv_results_["std_test_rmse"][bi]),
+                   tuned_val=E.metrics(y_va, ptuned), tuned_params=gs.best_params_)
         out["n_candidates"] = k
-    use_tuned = out["tuned_val"] is not None and out["tuned_val"]["RMSE"] < vb["RMSE"]
+    use_tuned = out["tuned_val"] is not None and out["tuned_val"]["RMSLE"] < vb["RMSLE"]
     out["config"] = "tuned" if use_tuned else "baseline"
     out["params"] = out.get("tuned_params", {}) if use_tuned else {}
     out["val"] = out["tuned_val"] if use_tuned else vb
+    out["val_pred"] = ptuned if use_tuned else pb
     out["fit_seconds"] = time.perf_counter() - t0
     return out
 
@@ -93,23 +107,23 @@ def run(test_sizes, model_names=None, tune=True, fast=False, use_mlflow=True, se
         is_serve = abs(ts - serve_size) < 1e-9
         split_rows = []
         for name, (est, grid) in specs.items():
-            r = fit_model(est, X_tr, y_tr, g_tr, X_va, y_va, grid, tune, n_iter, cv)
-            final = make_pipeline(clone(est)).set_params(**r["params"]).fit(X_trva, y_trva)   # train+val, cấu hình đã chọn
+            r = fit_model(est, X_tr, y_tr, g_tr, X_va, y_va, grid, tune, n_iter, cv, name=name)
+            final = make_pipeline(clone(est), name=name).set_params(**r["params"]).fit(X_trva, y_trva)   # train+val, cấu hình đã chọn
             pred_te = final.predict(X_te)
             m = E.metrics(y_te, pred_te)                                 # test chỉ để báo cáo
             row = {"split": pct, "test_size": ts, "n_train": len(X_tr), "n_val": len(X_va), "n_test": len(X_te), "model": name,
-                   "config_used": r["config"], "cv_rmse": r["cv_rmse"], "cv_rmse_std": r["cv_rmse_std"],
+                   "config_used": r["config"], "cv_rmse": r["cv_rmse"], "cv_rmse_std": r["cv_rmse_std"], "cv_rmsle": r["cv_rmsle"],
                    "val_RMSE_baseline": r["baseline_val"]["RMSE"],
                    "val_RMSE_tuned": None if r["tuned_val"] is None else r["tuned_val"]["RMSE"],
-                   "val_RMSE": r["val"]["RMSE"], "val_MAE": r["val"]["MAE"], "val_R2": r["val"]["R2"],
-                   **{k: m[k] for k in ("MAE", "RMSE", "R2", "MAPE", "medAPE", "within10pct", "within20pct")},
+                   "val_RMSE": r["val"]["RMSE"], "val_RMSLE": r["val"]["RMSLE"], "val_MAE": r["val"]["MAE"], "val_R2": r["val"]["R2"],
+                   **{k: m[k] for k in ("MAE", "RMSE", "RMSLE", "R2", "MAPE", "medAPE", "within10pct", "within20pct")},
                    "train_seconds": r["fit_seconds"], "best_params": json.dumps(_strip(r["params"]), default=str),
                    "selected_best": False}
             split_rows.append((row, final, r, pred_te))
             print(f"[{pct}] {name:18s} val RMSE base={r['baseline_val']['RMSE']/1e6:7.1f}tr "
-                  f"tuned={'-' if r['tuned_val'] is None else format(r['tuned_val']['RMSE']/1e6, '7.1f')}tr ({r['config']}) | "
-                  f"TEST MAE={m['MAE']/1e6:6.1f}tr RMSE={m['RMSE']/1e6:7.1f}tr R2={m['R2']:.3f} medAPE={m['medAPE']:.1f}%", flush=True)
-        winner = min(split_rows, key=lambda t: t[0]["val_RMSE"])
+                  f"tuned={'-' if r['tuned_val'] is None else format(r['tuned_val']['RMSE']/1e6, '7.1f')}tr ({r['config']}) val RMSLE={r['val']['RMSLE']:.4f} | "
+                  f"TEST MAE={m['MAE']/1e6:6.1f}tr RMSE={m['RMSE']/1e6:7.1f}tr RMSLE={m['RMSLE']:.4f} R2={m['R2']:.3f} medAPE={m['medAPE']:.1f}%", flush=True)
+        winner = min(split_rows, key=lambda t: t[0]["val_RMSLE"])
         winner[0]["selected_best"] = True
         for row, final, r, pred_te in split_rows:
             rows.append(row)
@@ -123,7 +137,8 @@ def run(test_sizes, model_names=None, tune=True, fast=False, use_mlflow=True, se
                                      "random_state": C.RANDOM_STATE, "data_version": data_version, "n_rows_clean": len(df),
                                      "features": ",".join(C.INPUT_FEATURES), "reference_year": C.REFERENCE_YEAR,
                                      **{f"hp_{k}": v for k, v in json.loads(row["best_params"]).items()}},
-                             metrics={"cv_rmse": row["cv_rmse"], "val_RMSE_baseline": row["val_RMSE_baseline"],
+                             metrics={"cv_rmse": row["cv_rmse"], "cv_rmsle": row["cv_rmsle"], "val_RMSLE": row["val_RMSLE"], "test_RMSLE": row["RMSLE"],
+                                      "val_RMSE_baseline": row["val_RMSE_baseline"],
                                       "val_RMSE_tuned": row["val_RMSE_tuned"], "val_RMSE": row["val_RMSE"], "val_R2": row["val_R2"],
                                       **{f"test_{k}": row[k] for k in ("MAE", "RMSE", "R2", "MAPE", "medAPE")},
                                       "train_seconds": row["train_seconds"]},
@@ -138,7 +153,7 @@ def run(test_sizes, model_names=None, tune=True, fast=False, use_mlflow=True, se
     res.to_csv(C.REPORTS / "supervised_results.csv", index=False)
 
     if served:
-        best_name = min(served, key=lambda k: served[k][0]["val_RMSE"])
+        best_name = min(served, key=lambda k: served[k][0]["val_RMSLE"])
         _analysis(served, ctx, df, best_name, specs, ablate_target)
         info = _save_candidate(served, ctx, df, best_name, model_version, data_version, tune, n_iter, serve_size)
         ok, why = _check_candidate(info, ctx)
@@ -147,6 +162,9 @@ def run(test_sizes, model_names=None, tune=True, fast=False, use_mlflow=True, se
         if promote and ok:
             _promote(info["model_version"])
             print(f"\nĐã nâng cấp mô hình phục vụ API -> {info['model_version']} (mô hình tốt nhất: {best_name})")
+            reg = tracking.register_champion(info["model_version"], best_name, mlflow_on)
+            if reg:
+                print(f"Đã đăng ký vào MLflow Model Registry: {reg['name']} v{reg['version']} (bí danh '{reg['alias']}')")
         else:
             print(f"\nKHÔNG ghi đè models/ hiện tại. {'(--no-promote)' if ok else 'Lý do: ' + why}. "
                   f"Bản mới nằm ở {C.MODELS / 'versions' / info['model_version']}")
@@ -161,20 +179,27 @@ def _analysis(served, ctx, df, best_name, specs, ablate_target):
     te_full = df.loc[X_te.index]
     # 1) bảng so sánh (validation + test) + mức tham chiếu
     tab = pd.DataFrame([{"model": LABELS.get(k, k), "config": v[0]["config_used"], "val_RMSE_baseline": v[0]["val_RMSE_baseline"],
-                         "val_RMSE_tuned": v[0]["val_RMSE_tuned"], "test_MAE": v[0]["MAE"], "test_RMSE": v[0]["RMSE"],
+                         "val_RMSE_tuned": v[0]["val_RMSE_tuned"], "val_RMSLE": v[0]["val_RMSLE"], "test_MAE": v[0]["MAE"], "test_RMSE": v[0]["RMSE"],
+                         "test_RMSLE": v[0]["RMSLE"],
                          "test_R2": v[0]["R2"], "test_MAPE_%": v[0]["MAPE"], "test_medAPE_%": v[0]["medAPE"],
                          "test_within20%": v[0]["within20pct"], "selected_best": k == best_name} for k, v in served.items()])
     ref = E.metrics(y_te, np.full(len(y_te), float(ctx["y_tr"].median())))
     pd.DataFrame([{"reference": "luôn dự đoán trung vị giá train", **ref}]).to_csv(C.REPORTS / "reference_baseline.csv", index=False)
     tab.to_csv(C.REPORTS / "model_comparison_table.csv", index=False)
     f = lambda x: "-" if pd.isna(x) else f"{x / 1e6:,.1f}"  # noqa: E731
-    md = ["| Mô hình | Cấu hình dùng | Val RMSE baseline (tr) | Val RMSE tuned (tr) | Test MAE (tr) | Test RMSE (tr) | Test R² | MAPE % | medAPE % | trong ±20% |",
-          "|---|---|---|---|---|---|---|---|---|---|"]
+    md = ["| Mô hình | Cấu hình dùng | Val RMSE baseline (tr) | Val RMSE tuned (tr) | Val RMSLE | Test MAE (tr) | Test RMSE (tr) | Test RMSLE | Test R² | MAPE % | medAPE % | trong ±20% |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for _, r in tab.iterrows():
-        md.append(f"| {r.model}{' ⭐' if r.selected_best else ''} | {r.config} | {f(r.val_RMSE_baseline)} | {f(r.val_RMSE_tuned)} | {f(r.test_MAE)} | "
-                  f"{f(r.test_RMSE)} | {r.test_R2:.3f} | {r['test_MAPE_%']:.1f} | {r['test_medAPE_%']:.1f} | {r['test_within20%']:.0f}% |")
-    md.append(f"| (tham chiếu: trung vị giá) | - | - | - | {f(ref['MAE'])} | {f(ref['RMSE'])} | {ref['R2']:.3f} | {ref['MAPE']:.1f} | {ref['medAPE']:.1f} | {ref['within20pct']:.0f}% |")
+        md.append(f"| {r.model}{' ⭐' if r.selected_best else ''} | {r.config} | {f(r.val_RMSE_baseline)} | {f(r.val_RMSE_tuned)} | {r.val_RMSLE:.4f} | {f(r.test_MAE)} | "
+                  f"{f(r.test_RMSE)} | {r.test_RMSLE:.4f} | {r.test_R2:.3f} | {r['test_MAPE_%']:.1f} | {r['test_medAPE_%']:.1f} | {r['test_within20%']:.0f}% |")
+    md.append(f"| (tham chiếu: trung vị giá) | - | - | - | - | {f(ref['MAE'])} | {f(ref['RMSE'])} | {ref['RMSLE']:.4f} | {ref['R2']:.3f} | {ref['MAPE']:.1f} | {ref['medAPE']:.1f} | {ref['within20pct']:.0f}% |")
     (C.REPORTS / "model_comparison_table.md").write_text("\n".join(md) + "\n", encoding="utf-8")
+    # 1b) vai trò từng thuật toán (validation) + khấu hao theo hãng của Linear Regression
+    ctx["roles"] = R.build_roles(ctx["X_va"], ctx["y_va"], {k: v[2]["val_pred"] for k, v in served.items()}, best_name)
+    ctx["roles"]["table"].to_csv(C.REPORTS / "model_roles.csv", index=False)
+    (C.REPORTS / "model_roles.md").write_text(R.roles_markdown(ctx["roles"], best_name), encoding="utf-8")
+    if "linear_regression" in served:
+        R.depreciation_by_brand(served["linear_regression"][1], ctx["X_tr"]).to_csv(C.REPORTS / "depreciation_by_brand.csv", index=False)
     # 2) permutation importance (cột đầu vào gốc), theo từng mô hình
     imps = []
     for k, v in served.items():
@@ -195,7 +220,7 @@ def _analysis(served, ctx, df, best_name, specs, ablate_target):
         ab = []
         for k, (est, _) in specs.items():
             for lt in (True, False):
-                p = make_pipeline(clone(est), log_target=lt).fit(ctx["X_tr"].loc[ctx["split"]["train"][0].index], ctx["split"]["train"][1])
+                p = make_pipeline(clone(est), log_target=lt, name=k).fit(ctx["X_tr"].loc[ctx["split"]["train"][0].index], ctx["split"]["train"][1])
                 m = E.metrics(ctx["y_va"], p.predict(ctx["X_va"]))
                 ab.append({"model": k, "target": "log1p(price)" if lt else "price (VND)", **m})
         pd.DataFrame(ab).to_csv(C.REPORTS / "target_transform_ablation.csv", index=False)
@@ -219,13 +244,17 @@ def _save_candidate(served, ctx, df, best_name, model_version, data_version, tun
             "target_transform": "log1p", "price_unit": C.PRICE_UNIT, "price_unit_note": C.PRICE_UNIT_NOTE,
             "reference_year": C.REFERENCE_YEAR, "features": C.INPUT_FEATURES, "required_features": C.REQUIRED_FEATURES,
             "random_state": C.RANDOM_STATE, "cv": f"GroupKFold({C.CV_FOLDS})", "tuned": tune, "tuning_iterations": n_iter,
-            "selection_criterion": "RMSE (VND) thấp nhất trên tập validation; test chỉ để báo cáo", "best_model": best_name,
+            "selection_criterion": "RMSLE (sai số tương đối, log-giá) thấp nhất trên tập validation; test chỉ để báo cáo", "best_model": best_name,
+            "roles": ctx["roles"]["roles"], "recommend_by_band": ctx["roles"]["recommend_by_band"],
             "models": {k: {"label": LABELS.get(k, k), "config_used": v[0]["config_used"], "cv_rmse": v[0]["cv_rmse"],
-                           "val_RMSE": v[0]["val_RMSE"],
-                           **{m: v[0][m] for m in ("MAE", "RMSE", "R2", "MAPE", "medAPE", "train_seconds")},
+                           "cv_rmsle": v[0]["cv_rmsle"], "val_RMSE": v[0]["val_RMSE"], "val_RMSLE": v[0]["val_RMSLE"],
+                           **{m: v[0][m] for m in ("MAE", "RMSE", "RMSLE", "R2", "MAPE", "medAPE", "train_seconds")},
                            "best_params": json.loads(v[0]["best_params"])} for k, v in served.items()},
             "libraries": {"python": platform.python_version(), "scikit-learn": sklearn.__version__, "pandas": pd.__version__,
                           "numpy": np.__version__, "xgboost": _ver("xgboost"), "mlflow": _ver("mlflow")}}
+    for k, (_, pipe, _, _) in served.items():   # khoảng sai số theo dải giá, đo trên test chưa từng dùng để chọn/huấn luyện
+        info["models"][k]["error_bands"] = E.error_bands(ctx["y_te"], pipe.predict(ctx["X_te"]))
+    info["error_band_level"] = E.BAND_LEVEL
     (vdir / "model_info.json").write_text(json.dumps(info, indent=2, ensure_ascii=False), encoding="utf-8")
     return info
 

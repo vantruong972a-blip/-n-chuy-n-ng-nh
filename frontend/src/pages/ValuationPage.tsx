@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, History, RotateCcw, Sparkles, TriangleAlert } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormField } from '../components/FormField'
@@ -11,6 +11,7 @@ import { useAsync } from '../hooks/useAsync'
 import { addHistory } from '../hooks/usePredictionHistory'
 import { formatVnd, formatVndFull } from '../lib/format'
 import { FIELD_GROUPS, MODEL_NOTE, humanizeMessage } from '../lib/labels'
+import { parsePrefill } from '../lib/prefill'
 import { toPayload, validateForm, type FormErrors, type FormValues } from '../lib/validation'
 import { ApiError } from '../services/http'
 import { getMeta, predictPrice, sendFeedback } from '../services/predictionService'
@@ -63,7 +64,20 @@ function FeedbackBox({ result }: { result: PredictResponse }) {
   )
 }
 
-function Result({ meta, payload, result }: { meta: MetaResponse; payload: PredictValues; result: PredictResponse }) {
+function ListedPriceCompare({ listed, predicted, label }: { listed: number; predicted: number; label: string }) {
+  const diff = (listed - predicted) / predicted
+  const pct = Math.abs(Math.round(diff * 100))
+  const text = pct < 3 ? 'gần bằng' : diff > 0 ? `cao hơn khoảng ${pct}% so với` : `thấp hơn khoảng ${pct}% so với`
+  return (
+    <div className="rounded-xl border border-line bg-white p-4 text-sm">
+      <p className="font-semibold text-ink">So với giá niêm yết của tin rao</p>
+      <p className="mt-1 text-ink-soft">Giá niêm yết {formatVndFull(listed)} <strong className="text-navy-deep">{text}</strong> giá mô hình ({label}).</p>
+      <p className="mt-1 text-xs leading-relaxed text-mute">Chỉ để tham khảo: sai số của mô hình thường khoảng ±10–20% (lớn hơn với xe giá rất cao), và giá niêm yết thường cao hơn giá chốt.</p>
+    </div>
+  )
+}
+
+function Result({ meta, payload, result, listedPrice }: { meta: MetaResponse; payload: PredictValues; result: PredictResponse; listedPrice: number | null }) {
   const chosen = result.all.find((a) => a.model === result.model)
   const prices = result.all.map((a) => a.price)
   const spread = Math.max(...prices) / Math.min(...prices)
@@ -73,6 +87,12 @@ function Result({ meta, payload, result }: { meta: MetaResponse; payload: Predic
         <p className="text-sm text-mute">Giá tham khảo theo {result.model_label}</p>
         <p className="mt-1 text-5xl font-extrabold tracking-tight text-navy-deep sm:text-6xl">{formatVnd(chosen?.price ?? result.price)}</p>
         <p className="mt-1 text-sm text-mute">{formatVndFull(result.price)}</p>
+        {result.range && (
+          <p className="mt-3 text-sm text-ink-soft">
+            Khoảng hợp lý (~{Math.round(result.range.level * 100)}%): <strong className="text-navy-deep">{formatVnd(result.range.low)} – {formatVnd(result.range.high)}</strong>
+            <span className="block text-xs leading-relaxed text-mute">Đo trên {result.range.n.toLocaleString('vi-VN')} xe thuộc dải giá {result.range.band} mà mô hình chưa từng học. Khoảng này nói về sai số mô hình so với giá niêm yết, không phải giá giao dịch.</span>
+          </p>
+        )}
         <p className="mt-3 text-xs leading-relaxed text-mute">{result.unit_note}</p>
       </div>
       {spread > 1.3 && (
@@ -89,8 +109,19 @@ function Result({ meta, payload, result }: { meta: MetaResponse; payload: Predic
         <h3 id="so-sanh-mo-hinh" className="text-sm font-bold text-ink">So sánh ba mô hình trên cùng một xe</h3>
         <ModelPriceChart items={result.all} selected={result.model} />
         <ul className="mt-1 space-y-1 text-xs text-mute">
-          {result.all.map((a) => <li key={a.model}><strong className="text-ink-soft">{a.label}</strong>: {MODEL_NOTE[a.model] ?? ''}</li>)}
+          {result.all.map((a) => (
+            <li key={a.model}>
+              <strong className="text-ink-soft">{a.label}{a.role?.title ? ` – ${a.role.title}` : ''}</strong>: {a.role?.summary ?? MODEL_NOTE[a.model] ?? ''}
+            </li>
+          ))}
         </ul>
+        {result.recommended && (
+          <p className="mt-2 text-xs leading-relaxed text-mute">
+            {result.recommended.is_default
+              ? `Với xe thuộc dải giá ${result.recommended.band}, ${result.recommended.label} cũng là mô hình có sai số tương đối thấp nhất trên tập kiểm định.`
+              : `Với xe thuộc dải giá ${result.recommended.band}, ${result.recommended.label} có sai số tương đối thấp hơn mô hình mặc định trên tập kiểm định (${result.recommended.n.toLocaleString('vi-VN')} xe); nên đối chiếu thêm giá của mô hình này.`}
+          </p>
+        )}
       </section>
       <section aria-labelledby="xe-da-nhap">
         <h3 id="xe-da-nhap" className="mb-3 text-sm font-bold text-ink">Thông tin xe đã nhập</h3>
@@ -101,6 +132,7 @@ function Result({ meta, payload, result }: { meta: MetaResponse; payload: Predic
           </p>
         )}
       </section>
+      {listedPrice !== null && <ListedPriceCompare listed={listedPrice} predicted={chosen?.price ?? result.price} label={result.model_label} />}
       <FeedbackBox key={result.prediction_id} result={result} />
       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-4 text-xs text-mute">
         <span>Mô hình: <strong className="text-ink-soft">{result.model_label}</strong></span>
@@ -114,7 +146,9 @@ function Result({ meta, payload, result }: { meta: MetaResponse; payload: Predic
 export default function ValuationPage() {
   const meta = useAsync(getMeta, 'meta')
   const toast = useToast()
-  const [values, setValues] = useState<FormValues>({})
+  const [search] = useSearchParams()
+  const [prefill] = useState(() => parsePrefill(search))
+  const [values, setValues] = useState<FormValues>(prefill.values)
   const [errors, setErrors] = useState<FormErrors>({})
   const [modelChoice, setModelChoice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -169,6 +203,13 @@ export default function ValuationPage() {
         Nhập thông tin xe để nhận giá tham khảo từ ba mô hình học máy. Chỉ cần hãng, dòng xe và năm sản xuất; càng nhiều thông tin, dự đoán càng sát.
       </PageHeader>
       <div className="container-page grid gap-8 py-10 lg:grid-cols-[1.15fr_1fr] lg:items-start">
+        {prefill.label && (
+          <div className="lg:col-span-2">
+            <Alert kind="info" title="Đã điền sẵn từ tin rao">
+              Thông tin của xe <strong>{prefill.label}</strong> đã được điền sẵn. Kiểm tra lại rồi bấm “Dự đoán giá xe”{prefill.listedPrice !== null ? '; kết quả sẽ so với giá niêm yết của tin đó' : ''}.
+            </Alert>
+          </div>
+        )}
         <form onSubmit={submit} noValidate className="space-y-6" aria-label="Biểu mẫu thông tin xe">
           {meta.loading && <div className="space-y-4"><Skeleton className="h-48" /><Skeleton className="h-64" /></div>}
           {meta.error && (
@@ -214,7 +255,7 @@ export default function ValuationPage() {
 
         <aside ref={resultRef} className="card scroll-mt-24 p-5 sm:p-7 lg:sticky lg:top-24" aria-live="polite" aria-label="Kết quả định giá">
           {busy && <div className="space-y-4" aria-busy><Skeleton className="h-6 w-1/2" /><Skeleton className="h-16 w-3/4" /><Skeleton className="h-36" /></div>}
-          {!busy && done && m && <Result meta={m} payload={done.payload} result={done.result} />}
+          {!busy && done && m && <Result meta={m} payload={done.payload} result={done.result} listedPrice={prefill.listedPrice} />}
           {!busy && !done && (
             <div className="py-8 text-center">
               <CheckCircle2 className="mx-auto size-10 text-navy/30" aria-hidden />

@@ -26,6 +26,7 @@ from recommend import DataNotAvailable, load_recommender  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 # Giao diện React (frontend/): nếu đã build thì phục vụ ở "/", giao diện HTML cũ vẫn truy cập được ở "/cu".
+IMAGES_DIR = C.DATA / "images"   # ảnh minh họa dòng xe + CREDITS.csv (scripts/fetch_car_images.py)
 FRONTEND_DIST = Path(os.environ.get("MLOPS_FRONTEND_DIST", ROOT / "frontend" / "dist"))
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -43,6 +44,8 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Dự đoán giá xe", version="1.1", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+if IMAGES_DIR.is_dir():
+    app.mount("/car-images", StaticFiles(directory=IMAGES_DIR), name="car-images")
 if (FRONTEND_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 monitor = Monitor()
@@ -107,7 +110,7 @@ def meta():
     return {"features": p.feature_meta(), "models": p.labels, "default_model": p.default_model,
             "unit": p.info["price_unit"], "unit_note": p.info["price_unit_note"], "required": p.required,
             "model_version": p.info["model_version"], "data_version": p.info["data_version"],
-            "brand_models": p.ref.get("brand_models", {})}
+            "brand_models": p.ref.get("brand_models", {}), "roles": {k: p.role(k) for k in p.models}}
 
 
 @app.get("/api/metrics")
@@ -119,8 +122,10 @@ def metrics():
             "unit": p.info["price_unit"], "unit_note": p.info["price_unit_note"], "n_val": p.info.get("n_val"),
             "split_strategy": p.info.get("split_strategy"),
             "models": [{"model": k, "label": v["label"], "config_used": v.get("config_used"),
-                        **{m: (None if v.get(m) is None else round(v[m], 3)) for m in ("cv_rmse", "val_RMSE", "MAE", "RMSE", "R2", "MAPE", "medAPE")}}
-                       for k, v in p.info["models"].items()]}
+                        **{m: (None if v.get(m) is None else round(v[m], 3)) for m in ("cv_rmse", "val_RMSE", "val_RMSLE", "MAE", "RMSE", "RMSLE", "R2", "MAPE", "medAPE")},
+                        "role": p.role(k)}
+                       for k, v in p.info["models"].items()],
+            "recommend_by_band": p.info.get("recommend_by_band")}
 
 
 @app.get("/api/model-info")
@@ -134,6 +139,13 @@ def model_info():
     return {**{k: i.get(k) for k in keys}, "serving_models": list(p.models),
             "models": {k: {"label": v["label"], "config_used": v.get("config_used"), "best_params": v.get("best_params", {})}
                        for k, v in i["models"].items()}}
+
+
+@app.get("/api/mlflow")
+def mlflow_runs():
+    """Các lần huấn luyện và Model Registry đọc từ mlflow.db (chỉ đọc)."""
+    from mlflow_view import mlflow_summary
+    return mlflow_summary()
 
 
 @app.get("/api/metrics/all")
@@ -182,7 +194,8 @@ class RecommendRequest(BaseModel):
     fuel_type: Optional[str] = Field(None, max_length=30)
     transmission: Optional[str] = Field(None, max_length=30)
     body_type: Optional[str] = Field(None, max_length=30)
-    method: Literal["knn", "content_based"] = "content_based"
+    method: Literal["knn", "content_based", "rule_based"] = "content_based"
+    liked_ids: List[str] = Field(default_factory=list, max_length=5, description="Mã các xe người dùng thích (chỉ dùng với content_based).")
     limit: int = Field(12, ge=1, le=24)
 
     @model_validator(mode="after")
@@ -194,7 +207,7 @@ class RecommendRequest(BaseModel):
 
 def get_recommender():
     try:
-        return load_recommender(C.PROCESSED / "clean.csv")
+        return load_recommender(C.PROCESSED / "clean.csv", IMAGES_DIR)
     except DataNotAvailable as e:
         raise HTTPException(503, str(e))
 
@@ -203,7 +216,7 @@ def get_recommender():
 def recommend(req: RecommendRequest):
     """Gợi ý xe từ tin rao thật. Trả {items: [CarListing], method, total}; items rỗng nếu không có xe phù hợp."""
     f = req.model_dump(exclude={"method", "limit"})
-    return get_recommender().recommend(f, req.method, req.limit)
+    return get_recommender().recommend(f, req.method, req.limit, req.liked_ids)
 
 
 @app.get("/api/cars/{car_id}")
@@ -218,7 +231,7 @@ def car_detail(car_id: str):
 @app.get("/{path:path}", include_in_schema=False)
 def spa_fallback(path: str):
     """Các đường dẫn của React Router (vd /dinh-gia): trả index.html. Đường dẫn /api/* không tồn tại vẫn trả 404 dạng JSON."""
-    if path.startswith(("api/", "assets/", "static/")) or not (FRONTEND_DIST / "index.html").exists():
+    if path.startswith(("api/", "assets/", "static/", "car-images/")) or not (FRONTEND_DIST / "index.html").exists():
         raise HTTPException(404, "Không tìm thấy")
     f = (FRONTEND_DIST / path).resolve()
     if path and f.is_file() and FRONTEND_DIST.resolve() in f.parents:   # file tĩnh ở gốc dist (favicon...)

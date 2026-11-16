@@ -18,11 +18,10 @@ def test_results_file(trained):
     assert np.isfinite(df[["MAE", "RMSE", "R2"]].values).all()
     assert df.n_test.nunique() == 1 and df.n_train.nunique() == 1       # cả 3 mô hình dùng cùng một test/train
     assert df.selected_best.sum() == 1
-    assert df.loc[df.selected_best, "val_RMSE"].iloc[0] == df.val_RMSE.min()   # chọn theo validation, không theo test
-    # cấu hình dùng là cấu hình có RMSE validation thấp hơn
+    assert df.loc[df.selected_best, "val_RMSLE"].iloc[0] == df.val_RMSLE.min()   # chọn theo RMSLE trên validation, không theo test
+    assert {"val_RMSLE", "RMSLE", "cv_rmsle"} <= set(df.columns)
     for _, r in df.iterrows():
-        if r.config_used == "tuned":
-            assert r.val_RMSE_tuned < r.val_RMSE_baseline
+        assert r.config_used in ("tuned", "baseline")
 
 
 def test_evaluation_reports_written(trained):

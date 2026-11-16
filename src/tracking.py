@@ -59,3 +59,37 @@ def log(enabled, params=None, metrics=None, model=None, artifacts=None, model_na
             mlflow.sklearn.log_model(model, name=model_name or "model", serialization_format="cloudpickle")
         except TypeError:  # mlflow 2.x dùng artifact_path
             mlflow.sklearn.log_model(model, artifact_path=model_name or "model", serialization_format="cloudpickle")
+
+
+REGISTRY_MODEL = "car-price-model"
+CHAMPION = "champion"
+
+
+def register_champion(model_version: str, algorithm: str, enabled=True):
+    """Đăng ký mô hình đang được API phục vụ vào MLflow Model Registry và gán bí danh 'champion'.
+
+    Gọi sau khi mô hình mới đã qua kiểm tra và được nâng cấp. Không bao giờ làm hỏng huấn luyện: lỗi chỉ cảnh báo.
+    Trả {name, version, alias} hoặc None.
+    """
+    if not (enabled and AVAILABLE):
+        return None
+    try:
+        client = mlflow.MlflowClient()
+        exp = client.get_experiment_by_name(C.MLFLOW_EXPERIMENT)
+        runs = client.search_runs([exp.experiment_id], max_results=5, order_by=["attributes.start_time DESC"],
+                                  filter_string=f"tags.model_version = '{model_version}' and params.algorithm = '{algorithm}'")
+        if not runs:
+            return None
+        run_id = runs[0].info.run_id
+        uri = f"runs:/{run_id}/{algorithm}"
+        if hasattr(mlflow, "search_logged_models"):   # MLflow >= 3: mô hình là LoggedModel riêng
+            lm = [m for m in mlflow.search_logged_models(experiment_ids=[exp.experiment_id], filter_string=f"name = '{algorithm}'",
+                                                         output_format="list") if m.source_run_id == run_id]
+            if lm:
+                uri = f"models:/{lm[0].model_id}"
+        mv = mlflow.register_model(uri, REGISTRY_MODEL, tags={"model_version": model_version, "algorithm": algorithm})
+        client.set_registered_model_alias(REGISTRY_MODEL, CHAMPION, mv.version)
+        return {"name": REGISTRY_MODEL, "version": str(mv.version), "alias": CHAMPION}
+    except Exception as e:  # noqa: BLE001
+        warnings.warn(f"Không đăng ký được vào MLflow Model Registry: {e}")
+        return None

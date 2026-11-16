@@ -24,8 +24,15 @@ def valid_input():
 @pytest.fixture(scope="session")
 def cleaned():
     """Chạy bước làm sạch trên TOÀN BỘ dữ liệu thật trong Data/raw/ một lần (ghi vào thư mục tạm)."""
+    import shutil
+    import config as C
     import preprocess
-    preprocess.main()
+    raw_ok = all(f.exists() for f in C.RAW_FILES.values())
+    src = ROOT / "Data" / "processed"
+    if not raw_ok and (src / "clean.csv").exists():      # bản clone không kèm dữ liệu thô: dùng bản đã làm sạch có sẵn
+        shutil.copytree(src, C.PROCESSED, dirs_exist_ok=True)
+    else:
+        preprocess.main()
     return preprocess.load_clean()
 
 

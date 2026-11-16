@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 import config as C
+import evaluation as E
 from model_registry import LABELS
 
 NUMERIC_RULES = {  # (min, max, kiểu nguyên?)  -- phạm vi HỢP LỆ tuyệt đối, không phải phạm vi quan sát được
@@ -66,6 +67,21 @@ class Predictor:
             raise ModelNotAvailable("Không có file mô hình .joblib trong models/. Hãy huấn luyện trước.")
         self.default_model = self.info["best_model"] if self.info["best_model"] in self.models else next(iter(self.models))
         self._brand_models = self.ref.get("brand_models", {})
+
+    def role(self, name):
+        """Vai trò đã đo của mô hình (từ model_info.json); bản mô hình cũ chưa có thì trả None."""
+        r = (self.info.get("roles") or {}).get(name)
+        return None if not r else {"title": r.get("title"), "summary": r.get("summary"), "wins_rmsle": r.get("wins_rmsle"),
+                                   "wins_medAPE": r.get("wins_medAPE"), "n_segments": r.get("n_segments")}
+
+    def recommend(self, price_default: float):
+        """Mô hình nên tin nhất cho dải giá dự đoán hiện tại (đo trên validation); None nếu bản mô hình chưa có thông tin."""
+        for b in self.info.get("recommend_by_band") or []:
+            if price_default >= b["lo"] and (b["hi"] is None or price_default < b["hi"]):
+                m = b["model"]
+                return {"model": m, "label": LABELS.get(m, m), "band": b["label"], "n": b["n"], "rmsle": b.get("rmsle"),
+                        "is_default": m == self.default_model}
+        return None
 
     @property
     def labels(self):
@@ -163,8 +179,11 @@ class Predictor:
         name = model or self.default_model
         allp = {k: float(m.predict(X)[0]) for k, m in self.models.items()}  # cùng 1 đầu vào cho mọi mô hình
         inputs = {k: (None if (isinstance(v, float) and np.isnan(v)) else v) for k, v in X.iloc[0].to_dict().items()}
-        return {"prediction_id": uuid.uuid4().hex[:12], "model": name, "model_label": LABELS.get(name, name),
+        def rng(k):
+            return E.apply_band(self.info["models"].get(k, {}).get("error_bands"), allp[k], self.info.get("error_band_level", E.BAND_LEVEL))
+        return {"prediction_id": uuid.uuid4().hex[:12], "model": name, "range": rng(name), "model_label": LABELS.get(name, name),
                 "price": allp[name], "unit": self.info["price_unit"], "unit_note": self.info["price_unit_note"],
                 "model_version": self.info["model_version"], "data_version": self.info["data_version"],
-                "all": [{"model": k, "label": LABELS.get(k, k), "price": v} for k, v in allp.items()],
+                "all": [{"model": k, "label": LABELS.get(k, k), "price": v, "range": rng(k), "role": self.role(k)} for k, v in allp.items()],
+                "recommended": self.recommend(allp[self.default_model]) if self.default_model in allp else None,
                 "warnings": warns, "defaults_used": omitted, "inputs": inputs}

@@ -37,10 +37,36 @@ export interface MetaResponse {
   brand_models: Record<string, string[]>
 }
 
+export interface PriceRange {
+  low: number
+  high: number
+  level: number
+  band: string
+  n: number
+}
+
+export interface ModelRole {
+  title: string | null
+  summary: string | null
+  wins_rmsle?: number | null
+  wins_medAPE?: number | null
+  n_segments?: number | null
+}
+
 export interface PredictionItem {
   model: string
   label: string
   price: number
+  range?: PriceRange | null
+  role?: ModelRole | null
+}
+
+export interface Recommendation {
+  model: string
+  label: string
+  band: string
+  n: number
+  is_default: boolean
 }
 
 export interface PredictResponse {
@@ -48,11 +74,13 @@ export interface PredictResponse {
   model: string
   model_label: string
   price: number
+  range?: PriceRange | null
   unit: string
   unit_note: string
   model_version: string
   data_version: string
   all: PredictionItem[]
+  recommended?: Recommendation | null
   warnings: string[]
   defaults_used: string[]
 }
@@ -65,8 +93,10 @@ export interface ModelMetric {
   config_used: string | null
   cv_rmse: number | null
   val_RMSE: number | null
+  val_RMSLE?: number | null
   MAE: number | null
   RMSE: number | null
+  RMSLE?: number | null
   R2: number | null
   MAPE: number | null
   medAPE: number | null
@@ -182,8 +212,17 @@ export interface RecommendFilters {
   fuel_type?: string
   transmission?: string
   body_type?: string
-  method: 'knn' | 'content_based'
+  method: 'knn' | 'content_based' | 'rule_based'
   limit: number
+  liked_ids?: string[]
+}
+
+export interface ImageCredit {
+  title?: string | null
+  author?: string | null
+  license?: string | null
+  license_url?: string | null
+  source_url?: string | null
 }
 
 export interface CarListing {
@@ -206,10 +245,48 @@ export interface CarListing {
   similar_ids?: string[]
   source?: string | null
   color?: string | null
+  image_kind?: 'model_illustration' | null
+  image_credit?: ImageCredit | null
+  similar?: CarListing[]
+  match_score?: number
 }
 
 export interface RecommendResponse {
   items: CarListing[]
-  method: 'knn' | 'content_based'
+  method: 'knn' | 'content_based' | 'rule_based'
   total?: number
+  notes?: string[]
+  suggestions?: string[]
+  suggestion_for?: 'brand' | 'model' | null
+}
+
+export interface MlflowRun {
+  run_id: string
+  name: string | null
+  status: string
+  started_at: string | null
+  model_version: string | null
+  split: string | null
+  selected_best: boolean
+  served: boolean
+  metrics: Partial<Record<'val_RMSE' | 'test_RMSE' | 'test_MAE' | 'test_R2' | 'test_MAPE' | 'test_medAPE' | 'cv_rmse' | 'train_seconds', number>>
+  params: Record<string, string>
+  hyperparameters: Record<string, string>
+}
+
+export interface MlflowRegistryVersion {
+  version: string
+  created_at: string | null
+  run_id: string | null
+  aliases: string[]
+  model_version: string | null
+  algorithm: string | null
+}
+
+export interface MlflowSummary {
+  available: boolean
+  reason: string | null
+  experiment: { name: string; id: string } | null
+  runs: MlflowRun[]
+  registry: { name: string; aliases: Record<string, string>; versions: MlflowRegistryVersion[] } | null
 }

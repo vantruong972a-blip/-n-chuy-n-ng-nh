@@ -9,6 +9,7 @@ const NAV = [
   { to: '/dinh-gia', label: 'Định giá ô tô' },
   { to: '/goi-y', label: 'Gợi ý xe phù hợp' },
   { to: '/lich-su', label: 'Lịch sử dự đoán' },
+  { to: '/mlflow', label: 'Theo dõi MLflow' },
   { to: '/quan-tri', label: 'Quản trị hệ thống' },
 ]
 
@@ -95,7 +96,7 @@ function Footer() {
 
 export function MainLayout() {
   const { pathname } = useLocation()
-  useEffect(() => window.scrollTo({ top: 0 }), [pathname])
+  useEffect(() => { window.scrollTo({ top: 0 }) }, [pathname])
   return (
     <ToastProvider>
       <a href="#noi-dung" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg">
