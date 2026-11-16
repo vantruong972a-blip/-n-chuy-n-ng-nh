@@ -1,0 +1,31 @@
+-- Tải tài nguyên và cài thư viện
+cd MLOPS
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+
+Huấn luyện mô hình (bắt buộc, vì mô hình không nằm trên git)
+python src\train_supervised.py --test-size 0.2
+
+Kiểm tra
+python -m pytest
+
+Build giao diện web đẹp (cần Node.js, làm một lần)
+cd frontend
+npm install
+npm run build
+cd ..
+
+-- Chạy web
+python -m uvicorn app.main:app
+Mở http://127.0.0.1:8000
+
+-- MLFOW
+python -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
+Mở http://127.0.0.1:5000
+
+lệnh bổ sung hi cần 
+python src\preprocess.py                              # làm sạch lại dữ liệu từ Data\raw
+python scripts\download_data.py                       # tải lại dữ liệu thô nếu Data\raw thiếu hoặc hỏng
+python scripts\fetch_car_images.py --top 120          # tải thêm ảnh xe (cần Internet)
+python scripts\register_champion.py                   # đăng ký lại mô hình đang phục vụ vào MLflow Registry
+python src\train_supervised.py --no-mlflow            # train mà không ghi MLflow
