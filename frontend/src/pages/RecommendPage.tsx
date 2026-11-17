@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { SearchX, X } from 'lucide-react'
 import { CarCard } from '../components/CarCard'
@@ -12,6 +12,13 @@ import type { CarListing, CategoryFeature, MetaResponse, RecommendFilters } from
 
 interface Form { min: string; max: string; brand: string; model: string; year: string; fuel_type: string; transmission: string; body_type: string; method: 'knn' | 'content_based' | 'rule_based' }
 const EMPTY: Form = { min: '', max: '', brand: '', model: '', year: '', fuel_type: '', transmission: '', body_type: '', method: 'content_based' }
+
+const STORE = 'goi-y-state-v1'
+interface Saved { f: Form; items: CarListing[] | null; total: number; info: { notes: string[]; suggestions: string[]; field: 'brand' | 'model' | null } }
+// Giữ tiêu chí và kết quả khi người dùng sang trang chi tiết xe rồi quay lại (chỉ trong phiên trình duyệt này).
+function loadSaved(): Partial<Saved> {
+  try { const raw = sessionStorage.getItem(STORE); return raw ? (JSON.parse(raw) as Partial<Saved>) : {} } catch { return {} }
+}
 
 const cat = (m: MetaResponse | undefined, name: string) => m?.features.find((f): f is CategoryFeature => f.name === name && f.type === 'category')
 
@@ -35,13 +42,17 @@ export default function RecommendPage() {
   const [search, setSearch] = useSearchParams()
   const likedId = (search.get('like') ?? '').slice(0, 60)
   const liked = useAsync(async () => (likedId ? await getCarDetail(likedId) : null), `like-${likedId}`)
-  const [f, setF] = useState<Form>(EMPTY)
+  const [saved] = useState(loadSaved)
+  const [f, setF] = useState<Form>({ ...EMPTY, ...(saved.f ?? {}) })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
-  const [items, setItems] = useState<CarListing[] | null>(null)
-  const [total, setTotal] = useState(0)
-  const [info, setInfo] = useState<{ notes: string[]; suggestions: string[]; field: 'brand' | 'model' | null }>({ notes: [], suggestions: [], field: null })
+  const [items, setItems] = useState<CarListing[] | null>(saved.items ?? null)
+  const [total, setTotal] = useState(saved.total ?? 0)
+  const [info, setInfo] = useState<{ notes: string[]; suggestions: string[]; field: 'brand' | 'model' | null }>(saved.info ?? { notes: [], suggestions: [], field: null })
   const [msg, setMsg] = useState<{ kind: 'notready' | 'error'; text: string } | null>(null)
+  useEffect(() => {
+    try { sessionStorage.setItem(STORE, JSON.stringify({ f, items, total, info })) } catch { /* trình duyệt chặn lưu: bỏ qua */ }
+  }, [f, items, total, info])
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((s) => ({ ...s, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }))
   const num = (k: 'min' | 'max' | 'year') => (e: string) => /^\d{0,7}$/.test(e) && set(k, e)
   const yearMeta = meta.data?.features.find((x) => x.name === 'year')
