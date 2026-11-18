@@ -171,7 +171,7 @@ class Recommender:
             if root.resolve() not in p.parents or not p.is_file():
                 continue
             out[(str(r["brand"]).lower(), str(r["model"]).lower())] = {
-                "url": f"{IMAGE_URL_PREFIX}/{rel}",
+                "url": f"{IMAGE_URL_PREFIX}/{rel}?v={int(p.stat().st_mtime)}",   # đổi ảnh thì đổi địa chỉ, trình duyệt không dùng ảnh cũ trong bộ nhớ đệm
                 "credit": {k: (r.get(k) or None) for k in ("title", "author", "license", "license_url", "source_url")},
             }
         return out

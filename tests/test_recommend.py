@@ -183,7 +183,7 @@ def test_images_only_when_file_exists_and_credit_valid(tmp_path):
         "toyota,yaris,toyota/yaris.txt,File:Y.jpg,D,CC0,,\n", encoding="utf-8")   # đuôi không hợp lệ
     r = Recommender(_df(), images_dir=tmp_path)
     vios = r.recommend({"brand": "toyota", "model": "vios"}, "rule_based", 1)["items"][0]
-    assert vios["image_url"] == "/car-images/toyota/vios.jpg" and vios["image_kind"] == "model_illustration"
+    assert vios["image_url"].startswith("/car-images/toyota/vios.jpg?v=") and vios["image_kind"] == "model_illustration"
     assert vios["image_credit"]["author"] == "Nguyen A" and vios["image_credit"]["license"] == "CC BY-SA 4.0"
     camry = r.recommend({"brand": "toyota", "model": "camry"}, "rule_based", 1)["items"][0]
     assert camry["image_url"] is None and camry["image_credit"] is None

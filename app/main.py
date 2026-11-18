@@ -46,6 +46,14 @@ app = FastAPI(title="Dự đoán giá xe", version="1.1", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 if IMAGES_DIR.is_dir():
     app.mount("/car-images", StaticFiles(directory=IMAGES_DIR), name="car-images")
+
+    @app.middleware("http")
+    async def _revalidate_car_images(request, call_next):
+        """Ảnh có thể được thay (tải lại ảnh đúng hơn): buộc trình duyệt hỏi lại máy chủ thay vì dùng bản cũ trong bộ nhớ đệm."""
+        resp = await call_next(request)
+        if request.url.path.startswith("/car-images/"):
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
 if (FRONTEND_DIST / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
 monitor = Monitor()

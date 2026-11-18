@@ -50,7 +50,12 @@ BAD_WORDS = re.compile(
     r"sketch|drawing|illustration|render|crash|accident|wreck|burnt|toy|model car|scale model|diecast|lego|poster|brochure|advertis|"
     r"sign|plate|key|remote|gearbox|speedometer|odometer|chassis|undercarriage|taxi|police|ambulance|fire|"
     r"handle|door handle|frost|frosty|frozen|ice|icy|snow flake|mirror|grille|grill|bumper|lamp|hood|bonnet|antenna|fuel cap|"
-    r"window|windscreen|windshield|roof rack|sticker|close-up|closeup|macro|part|parts|spoiler|exhaust|tyre|tire|pedal|lever|knob|button|display|screen|badge)\b", re.I)
+    r"window|windscreen|windshield|roof rack|sticker|close-up|closeup|macro|part|parts|spoiler|exhaust|tyre|tire|pedal|lever|knob|button|display|screen|badge|"
+    r"motorcycle|motorbike|bike|rally|racing|race|dtm|wrc|concept|prototype|limousine)\b", re.I)
+
+BAD_DESC = re.compile(
+    r"\b(interior|engine|dashboard|cockpit|wheel|rim|headlight|taillight|tail light|seat|steering|handle|frost|frozen|"
+    r"motorcycle|motorbike|rally|racing|race car|dtm|wrc|concept car|prototype|close-up|closeup|macro)\b", re.I)
 
 
 def slug(s: str) -> str:
@@ -103,14 +108,15 @@ def candidate_ok(page: Dict[str, Any], brand: str, model: str) -> Optional[Dict[
     title = str(page.get("title", ""))
     cats = meta(info, "Categories")
     desc = meta(info, "ImageDescription")
-    haystack = set(tokens(title + " " + cats))
-    if not all(t in haystack for t in tokens(brand)) or not all(t in haystack for t in tokens(model)):
-        return None
-    # Tên hãng và dòng phải đứng liền nhau (vd "mazda 323"), tránh khớp số "323" ở chỗ khác trong tiêu đề.
-    phrase = " ".join(tokens(brand) + tokens(model))
-    if phrase not in " ".join(tokens(title + " " + cats)):
+    # Tên hãng và dòng phải đứng liền nhau (vd "mazda 323", "mazda2"), không khớp rời rạc ở chỗ khác trong tiêu đề.
+    sep = r"[\s\-]*"
+    pat = r"\b" + sep.join(re.escape(t) for t in tokens(brand) + tokens(model)) + r"\b"
+    norm = " ".join(tokens(title)) + " | " + " ".join(tokens(cats))
+    if not re.search(pat, norm):
         return None
     if BAD_WORDS.search(title + " " + cats):
+        return None
+    if BAD_DESC.search(desc):   # mô tả ảnh cũng cho biết ảnh chụp chi tiết, xe đua hay xe trưng bày ý tưởng
         return None
     thumb = info.get("thumburl") or info.get("url")
     if not thumb:
@@ -150,11 +156,25 @@ def fetch(url: str, retries: int = 3, timeout: int = 40) -> bytes:
     raise RuntimeError(f"Không tải được {url}: {last}")
 
 
-def search(brand: str, model: str) -> Dict[str, Any]:
-    q = {"action": "query", "format": "json", "generator": "search", "gsrnamespace": "6", "gsrsearch": build_query(brand, model),
+def _search_one(query: str) -> Dict[str, Any]:
+    q = {"action": "query", "format": "json", "generator": "search", "gsrnamespace": "6", "gsrsearch": query,
          "gsrlimit": "20", "prop": "imageinfo", "iiprop": "url|mime|size|extmetadata", "iiurlwidth": str(THUMB_WIDTH),
          "iiextmetadatafilter": "Artist|LicenseShortName|LicenseUrl|ImageDescription|Categories"}
     return json.loads(fetch(API + "?" + urllib.parse.urlencode(q)).decode("utf-8"))
+
+
+def search(brand: str, model: str) -> Dict[str, Any]:
+    res = _search_one(build_query(brand, model))
+    if len(model) <= 3 or model.isdigit():
+        # Tên dòng ngắn thường được viết liền trên Wikimedia ("Mazda2", "BMW X5"), tìm thêm cách viết liền.
+        time.sleep(1.0)
+        extra = _search_one(f"{display_name(brand, model).replace(' ', '')} filetype:bitmap")
+        pages = ((res.get("query") or {}).setdefault("pages", {}))
+        for k, pg in (((extra or {}).get("query") or {}).get("pages", {})).items():
+            pg = dict(pg)
+            pg["index"] = int(pg.get("index", 0)) + 100
+            pages.setdefault(f"x{k}", pg)
+    return res
 
 
 # ---------------- dữ liệu ra ----------------
