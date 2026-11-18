@@ -20,11 +20,18 @@ function loadSaved(): Partial<Saved> {
   try { const raw = sessionStorage.getItem(STORE); return raw ? (JSON.parse(raw) as Partial<Saved>) : {} } catch { return {} }
 }
 
+const UNKNOWN = ['other', 'khac', 'khác']
+// Hãng chỉ có dòng "other" thì trang gợi ý không có xe nào để hiện nên không đưa vào danh sách chọn.
+const hasListableModels = (m: MetaResponse | undefined, brand: string) => {
+  const models = m?.brand_models[brand]
+  return !models || models.some((x) => !UNKNOWN.includes(x.toLowerCase()))
+}
+
 const cat = (m: MetaResponse | undefined, name: string) => m?.features.find((f): f is CategoryFeature => f.name === name && f.type === 'category')
 
-function Select({ id, label, meta, name, value, onChange }: { id: string; label: string; meta?: MetaResponse; name: string; value: string; onChange: (v: string) => void }) {
+function Select({ id, label, meta, name, value, onChange, keep }: { id: string; label: string; meta?: MetaResponse; name: string; value: string; onChange: (v: string) => void; keep?: (o: string) => boolean }) {
   const f = cat(meta, name)
-  const opts = (f?.options ?? []).map((o) => ({ value: o, label: name === 'brand' ? formatBrand(o) : valueLabel(name, o) })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const opts = (f?.options ?? []).filter((o) => !keep || keep(o)).map((o) => ({ value: o, label: name === 'brand' ? formatBrand(o) : valueLabel(name, o) })).sort((a, b) => a.label.localeCompare(b.label, 'vi'))
   return (
     <div>
       <label htmlFor={id} className="label">{label}</label>
@@ -55,6 +62,11 @@ export default function RecommendPage() {
   }, [f, items, total, info])
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((s) => ({ ...s, [k]: v, ...(k === 'brand' ? { model: '' } : {}) }))
   const num = (k: 'min' | 'max' | 'year') => (e: string) => /^\d{0,7}$/.test(e) && set(k, e)
+  const modelOptions = (() => {
+    const list = (meta.data?.brand_models[f.brand] ?? []).filter((m) => !['other', 'khac', 'khác'].includes(m.toLowerCase()))
+    if (f.model && !list.includes(f.model)) list.push(f.model)   // giữ giá trị đã lưu từ lần tìm trước
+    return list.sort((a, b) => formatModel(a).localeCompare(formatModel(b), 'vi'))
+  })()
   const yearMeta = meta.data?.features.find((x) => x.name === 'year')
   const yMin = yearMeta?.type === 'number' ? yearMeta.min : null
   const yMax = yearMeta?.type === 'number' ? yearMeta.max : null
@@ -118,11 +130,13 @@ export default function RecommendPage() {
               <div className="relative"><input id="ns-max" inputMode="numeric" className="input pr-16" placeholder="Ví dụ: 600" value={f.max} aria-invalid={errors.max ? true : undefined} onChange={(e) => num('max')(e.target.value)} /><span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-sm text-mute">triệu</span></div>
               {errors.max && <p role="alert" className="mt-1 text-sm font-medium text-bad">{errors.max}</p>}
             </div>
-            <Select id="hang" label="Hãng xe" meta={meta.data} name="brand" value={f.brand} onChange={(v) => set('brand', v)} />
+            <Select id="hang" label="Hãng xe" meta={meta.data} name="brand" value={f.brand} onChange={(v) => set('brand', v)} keep={(o) => hasListableModels(meta.data, o)} />
             <div>
               <label htmlFor="dong" className="label">Dòng xe</label>
-              <input id="dong" className="input" list="ds-dong" maxLength={60} placeholder="Ví dụ: vios" value={f.model} onChange={(e) => set('model', e.target.value)} />
-              <datalist id="ds-dong">{(meta.data?.brand_models[f.brand] ?? []).slice(0, 200).map((o) => <option key={o} value={o} />)}</datalist>
+              <select id="dong" className="input" value={f.model} onChange={(e) => set('model', e.target.value)} disabled={!f.brand}>
+                <option value="">{f.brand ? 'Tất cả dòng xe' : 'Chọn hãng xe trước'}</option>
+                {modelOptions.map((o) => <option key={o} value={o}>{formatModel(o)}</option>)}
+              </select>
             </div>
             <div>
               <label htmlFor="nam" className="label">Năm sản xuất từ</label>

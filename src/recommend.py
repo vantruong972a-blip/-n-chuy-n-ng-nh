@@ -28,6 +28,7 @@ from scipy import sparse
 from sklearn.neighbors import NearestNeighbors
 
 NUM_WEIGHTS = {"log_price": 2.0, "year": 1.5, "log_km": 1.0, "engine_capacity": 0.7, "seats": 0.5}
+UNKNOWN_MODELS = {"other", "khac", "khác"}
 CAT_COLS = ["fuel_type", "transmission", "body_type", "origin"]
 CAT_WEIGHT = 0.8
 FUEL_VI = {"gasoline": "Xăng", "diesel": "Dầu diesel", "hybrid": "Hybrid", "electric": "Chạy điện"}
@@ -103,6 +104,9 @@ class Recommender:
             d[c] = d[c].astype(object).where(d[c].notna(), None).map(lambda x: x.lower().strip() if isinstance(x, str) else None)
         d["id"] = d["source"].astype(str) + "-" + d["source_id"].astype(str)
         d = d.drop_duplicates("id").reset_index(drop=True)
+        # Dòng xe "other/khác" gộp nhiều mẫu không rõ nên không có ảnh và không so sánh được: không đưa vào gợi ý.
+        # Chỉ lọc ở phần gợi ý; dữ liệu huấn luyện giữ nguyên.
+        d = d[~d["model"].isin(UNKNOWN_MODELS)].reset_index(drop=True)
         # Chữ ký để loại tin giống hệt nhau nhưng group_id khác (cùng xe đăng nhiều lần, khác tiêu đề).
         # Giá trị thiếu được thay bằng "?" trước khi nối chuỗi (nối với NaN cho NaN và sẽ gộp nhầm các tin khác nhau).
         def t(col: str) -> pd.Series:

@@ -25,7 +25,7 @@ NUMERIC_RULES = {  # (min, max, kiểu nguyên?)  -- phạm vi HỢP LỆ tuyệ
 FREE_TEXT = {"variant"}   # giá trị chưa gặp chỉ cảnh báo
 FIELD_LABELS = {"brand": "Hãng xe", "model": "Dòng xe", "variant": "Phiên bản", "body_type": "Kiểu dáng", "year": "Năm sản xuất",
                 "mileage_km": "Số km đã đi", "engine_capacity": "Dung tích động cơ (lít)", "transmission": "Hộp số",
-                "fuel_type": "Nhiên liệu", "drivetrain": "Dẫn động", "seats": "Số chỗ", "origin": "Xuất xứ", "province": "Tỉnh/thành"}
+                "fuel_type": "Nhiên liệu", "drivetrain": "Dẫn động", "seats": "Số chỗ", "origin": "Xuất xứ", "province": "Nơi rao bán (tỉnh/thành)"}
 
 
 class ModelNotAvailable(Exception):

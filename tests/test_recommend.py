@@ -278,3 +278,20 @@ def test_rule_based_still_hard_filters():
     rec = Recommender(_cbf_df())
     r = rec.recommend({"transmission": "manual"}, "rule_based", 20)
     assert r["items"] and all(x["transmission"] == "manual" for x in r["items"])
+
+
+def test_unknown_model_other_is_not_recommended():
+    """Dòng xe 'other' gộp nhiều mẫu không rõ nên không được đưa vào gợi ý."""
+    import pandas as pd
+    from src.recommend import Recommender
+
+    rows = []
+    for i, m in enumerate(["vios", "other", "vios", "khac"]):
+        rows.append({"source": "t", "source_id": str(i), "brand": "toyota", "model": m, "year": 2018 + i % 2,
+                     "price": 400e6 + i * 1e6, "group_id": i, "mileage_km": 30000 + i,
+                     "fuel_type": "petrol", "transmission": "at", "body_type": "sedan", "origin": "domestic",
+                     "engine_capacity": 1.5, "seats": 5, "color": "x", "variant": "x", "province": "ha-noi", "drivetrain": "fwd"})
+    r = Recommender(pd.DataFrame(rows))
+    assert set(r.df["model"]) == {"vios"}
+    out = r.recommend({"brand": "toyota"}, "rule_based", limit=10)
+    assert all(x["model"] == "vios" for x in out["items"])

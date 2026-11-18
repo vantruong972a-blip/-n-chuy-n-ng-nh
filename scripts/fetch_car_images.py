@@ -48,7 +48,9 @@ LICENSE_BAD = re.compile(r"\b(NC|ND)\b", re.I)
 BAD_WORDS = re.compile(
     r"\b(interior|engine|dashboard|cockpit|logo|badge|emblem|wheel|rim|headlight|taillight|tail light|detail|seat|steering|trunk|boot|"
     r"sketch|drawing|illustration|render|crash|accident|wreck|burnt|toy|model car|scale model|diecast|lego|poster|brochure|advertis|"
-    r"sign|plate|key|remote|gearbox|speedometer|odometer|chassis|undercarriage|taxi|police|ambulance|fire)\b", re.I)
+    r"sign|plate|key|remote|gearbox|speedometer|odometer|chassis|undercarriage|taxi|police|ambulance|fire|"
+    r"handle|door handle|frost|frosty|frozen|ice|icy|snow flake|mirror|grille|grill|bumper|lamp|hood|bonnet|antenna|fuel cap|"
+    r"window|windscreen|windshield|roof rack|sticker|close-up|closeup|macro|part|parts|spoiler|exhaust|tyre|tire|pedal|lever|knob|button|display|screen|badge)\b", re.I)
 
 
 def slug(s: str) -> str:
@@ -103,6 +105,10 @@ def candidate_ok(page: Dict[str, Any], brand: str, model: str) -> Optional[Dict[
     desc = meta(info, "ImageDescription")
     haystack = set(tokens(title + " " + cats))
     if not all(t in haystack for t in tokens(brand)) or not all(t in haystack for t in tokens(model)):
+        return None
+    # Tên hãng và dòng phải đứng liền nhau (vd "mazda 323"), tránh khớp số "323" ở chỗ khác trong tiêu đề.
+    phrase = " ".join(tokens(brand) + tokens(model))
+    if phrase not in " ".join(tokens(title + " " + cats)):
         return None
     if BAD_WORDS.search(title + " " + cats):
         return None

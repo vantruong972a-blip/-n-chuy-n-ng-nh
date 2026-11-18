@@ -7,7 +7,7 @@ python src/unsupervised.py
 python src/semi_supervised.py
 python scripts/make_report.py
 
-backend:  uvicorn app.main:app --reload
+backend:  python -m uvicorn app.main:app
 mở 1 cửa sổ terminal mới rồi chạy:
 python -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 chạy web:
