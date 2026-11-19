@@ -6,6 +6,12 @@ Chạy trên máy CÓ Internet (không chạy được trong môi trường bị
     python scripts/fetch_car_images.py --dry-run          # chỉ in truy vấn, không tải
     python scripts/fetch_car_images.py --drop toyota/vios # xóa ảnh/dòng ghi nguồn bị chọn sai
 
+Thứ tự ưu tiên nguồn ảnh: (1) Wikimedia Commons giấy phép tự do; (2) chỉ khi không có, mới dùng link ảnh tự chọn:
+    python scripts/fetch_car_images.py --add kia/rondo --url https://.../anh.jpg --author "..." --license "..."
+        (thử Wikimedia trước; thêm --force-url để dùng thẳng link)
+    hoặc ghi sẵn nhiều link vào Data/images/manual_urls.csv (cột model,url,author,license); lần chạy thường sẽ chỉ
+    dùng các link này cho dòng xe mà Wikimedia không có ảnh.
+
 Kết quả:
     Data/images/<hãng>/<dòng>.jpg|png     ảnh 640 px
     Data/images/CREDITS.csv               hãng, dòng, file, tiêu đề, tác giả, giấy phép, link giấy phép, link trang ảnh
@@ -226,6 +232,72 @@ def top_models(clean_csv: Path, top: int, min_listings: int) -> List[tuple]:
     return [(r.brand, r.model) for r in c.itertuples()]
 
 
+def add_manual(args: argparse.Namespace, rows: Dict[tuple, Dict[str, str]], out: Path, cred_path: Path, fetch_fn,
+               target: Optional[str] = None, url: Optional[str] = None, author: Optional[str] = None,
+               license_: Optional[str] = None) -> Dict[str, int]:
+    """Thêm ảnh do người dùng tự chọn bằng đường dẫn ảnh (không qua Wikimedia). Giấy phép do người thêm tự chịu trách nhiệm."""
+    brand, _, model = (target or args.add).lower().partition("/")
+    url = (url or args.url or "").strip()
+    author = author if author is not None else getattr(args, "author", None)
+    license_ = license_ if license_ is not None else getattr(args, "license", None)
+    if not brand or not model or not re.match(r"^https://", url, re.I):
+        print("Cần --add hãng/dòng và --url bắt đầu bằng https://")
+        return {"error": 1}
+    data = fetch_fn(url)
+    if not data or len(data) > args.max_bytes * 4:
+        print(f"Ảnh rỗng hoặc quá lớn ({len(data) if data else 0} byte, tối đa {args.max_bytes * 4})")
+        return {"error": 1}
+    if data[:3] == b"\xff\xd8\xff":
+        ext = ".jpg"
+    elif data[:8] == b"\x89PNG\r\n\x1a\n":
+        ext = ".png"
+    else:
+        print("Đường dẫn này không phải file ảnh JPEG hoặc PNG (có thể là trang web, hãy dùng 'Sao chép địa chỉ hình ảnh').")
+        return {"error": 1}
+    rel = f"{slug(brand)}/{slug(model)}{ext}"
+    (out / slug(brand)).mkdir(parents=True, exist_ok=True)
+    (out / rel).write_bytes(data)
+    rows[(brand, model)] = {"brand": brand, "model": model, "file": rel, "title": urllib.parse.unquote(url.rsplit("/", 1)[-1])[:120],
+                            "author": author or "", "license": license_ or "Chưa xác minh (ảnh do nhóm tự thêm)",
+                            "license_url": "", "source_url": url}
+    write_credits(cred_path, rows)
+    write_review(out, rows)
+    print(f"  + {brand}/{model}: đã thêm từ {url}")
+    return {"ok": 1}
+
+
+def read_manual_urls(path: Path) -> Dict[tuple, Dict[str, str]]:
+    """Đọc danh sách link ảnh dự phòng: cột model (hãng/dòng), url, author, license. Chỉ dùng khi Wikimedia không có ảnh."""
+    if not path.exists():
+        return {}
+    out: Dict[tuple, Dict[str, str]] = {}
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f):
+            b, _, m = (r.get("model") or "").strip().lower().partition("/")
+            if b and m and (r.get("url") or "").strip():
+                out[(b, m)] = {k: (v or "").strip() for k, v in r.items()}
+    return out
+
+
+def try_wikimedia(brand: str, model: str, args, rows, out: Path, cred_path: Path, fetch_fn, search_fn) -> bool:
+    """Tìm ảnh giấy phép tự do trên Wikimedia. Trả True nếu đã lưu được ảnh."""
+    cand = pick_candidate(search_fn(brand, model), brand, model)
+    if not cand:
+        return False
+    data = fetch_fn(cand["thumb_url"])
+    if not data or len(data) > args.max_bytes:
+        raise RuntimeError(f"ảnh rỗng hoặc quá lớn ({len(data) if data else 0} byte)")
+    ext = ".png" if cand["mime"] == "image/png" else ".jpg"
+    rel = f"{slug(brand)}/{slug(model)}{ext}"
+    (out / slug(brand)).mkdir(parents=True, exist_ok=True)
+    (out / rel).write_bytes(data)
+    rows[(brand, model)] = {"brand": brand, "model": model, "file": rel, "title": cand["title"], "author": cand["author"],
+                            "license": cand["license"], "license_url": cand["license_url"], "source_url": cand["source_url"]}
+    write_credits(cred_path, rows)          # ghi dần để chạy lại được nếu bị ngắt
+    print(f"  + {brand}/{model}: {cand['title']} ({cand['license']}) [Wikimedia]")
+    return True
+
+
 def run(args: argparse.Namespace, fetch_fn=None, search_fn=None, sleep=time.sleep) -> Dict[str, int]:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -244,8 +316,21 @@ def run(args: argparse.Namespace, fetch_fn=None, search_fn=None, sleep=time.slee
         print("Đã xóa" if r else "Không có dòng này trong CREDITS.csv", f"{b}/{m}")
         return {"dropped": int(bool(r))}
 
+    if getattr(args, "add", None):
+        b, _, m = args.add.lower().partition("/")
+        if not getattr(args, "force_url", False):
+            try:
+                if try_wikimedia(b, m, args, rows, out, cred_path, fetch_fn, search_fn):
+                    write_review(out, rows)
+                    return {"ok": 1}
+            except Exception as e:
+                print(f"  ! Wikimedia lỗi ({e}), chuyển sang link ảnh")
+            print(f"  Wikimedia không có ảnh đạt bộ lọc cho {b}/{m} → dùng link ảnh bạn đưa")
+        return add_manual(args, rows, out, cred_path, fetch_fn)
+
     pairs = [tuple(x.lower().split("/", 1)) for x in args.only] if args.only else top_models(Path(args.clean), args.top, args.min_listings)
     stats = {"ok": 0, "skipped": 0, "not_found": 0, "error": 0}
+    manual = read_manual_urls(Path(args.manual_file) if getattr(args, "manual_file", None) else out / "manual_urls.csv")
     for brand, model in pairs:
         key = (brand, model)
         if key in rows and (out / rows[key]["file"]).exists() and not args.refresh:
@@ -255,23 +340,16 @@ def run(args: argparse.Namespace, fetch_fn=None, search_fn=None, sleep=time.slee
             print(build_query(brand, model))
             continue
         try:
-            cand = pick_candidate(search_fn(brand, model), brand, model)
-            if not cand:
+            if try_wikimedia(brand, model, args, rows, out, cred_path, fetch_fn, search_fn):
+                stats["ok"] += 1
+            elif key in manual:                      # chỉ khi Wikimedia không có ảnh đạt bộ lọc
+                mu = manual[key]
+                r = add_manual(args, rows, out, cred_path, fetch_fn, target=f"{brand}/{model}", url=mu["url"],
+                               author=mu.get("author"), license_=mu.get("license"))
+                stats["ok" if r.get("ok") else "error"] += 1
+            else:
                 print(f"  - {brand}/{model}: không có ảnh đạt bộ lọc")
                 stats["not_found"] += 1
-            else:
-                data = fetch_fn(cand["thumb_url"])
-                if not data or len(data) > args.max_bytes:
-                    raise RuntimeError(f"ảnh rỗng hoặc quá lớn ({len(data) if data else 0} byte)")
-                ext = ".png" if cand["mime"] == "image/png" else ".jpg"
-                rel = f"{slug(brand)}/{slug(model)}{ext}"
-                (out / slug(brand)).mkdir(parents=True, exist_ok=True)
-                (out / rel).write_bytes(data)
-                rows[key] = {"brand": brand, "model": model, "file": rel, "title": cand["title"], "author": cand["author"],
-                             "license": cand["license"], "license_url": cand["license_url"], "source_url": cand["source_url"]}
-                write_credits(cred_path, rows)          # ghi dần để chạy lại được nếu bị ngắt
-                print(f"  + {brand}/{model}: {cand['title']} ({cand['license']})")
-                stats["ok"] += 1
         except Exception as e:
             print(f"  ! {brand}/{model}: {e}")
             stats["error"] += 1
@@ -294,6 +372,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--delay", type=float, default=1.0, help="giây nghỉ giữa các yêu cầu")
     ap.add_argument("--max-bytes", type=int, default=800_000)
     ap.add_argument("--relaxed", action="store_true", help="nới lỏng bộ lọc (tên liền kề, mô tả, tỷ lệ, 50 kết quả); PHẢI xem lại review.html")
+    ap.add_argument("--add", help="thêm ảnh tự chọn cho một dòng xe: hãng/dòng (dùng cùng --url)")
+    ap.add_argument("--url", help="địa chỉ https của file ảnh (jpg/png) cho --add")
+    ap.add_argument("--force-url", action="store_true", help="với --add: bỏ qua Wikimedia, dùng thẳng --url")
+    ap.add_argument("--manual-file", help="CSV link ảnh dự phòng (cột model,url,author,license); mặc định Data/images/manual_urls.csv")
+    ap.add_argument("--author", help="tác giả hoặc nguồn ảnh, ghi vào CREDITS.csv")
+    ap.add_argument("--license", help="giấy phép ảnh, ghi vào CREDITS.csv")
     ap.add_argument("--refresh", action="store_true", help="tải lại cả dòng đã có ảnh")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--drop", help="xóa ảnh đã chọn sai, dạng hãng/dòng")

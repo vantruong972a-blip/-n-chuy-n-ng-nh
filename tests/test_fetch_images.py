@@ -116,3 +116,52 @@ def test_top_models_reads_clean_csv(tmp_path):
     import pandas as pd
     pd.DataFrame({"brand": ["Toyota"] * 5 + ["kia"] * 3 + ["honda"], "model": ["Vios"] * 5 + ["seltos"] * 3 + ["other"]}).to_csv(tmp_path / "c.csv", index=False)
     assert F.top_models(tmp_path / "c.csv", 5, 2) == [("toyota", "vios"), ("kia", "seltos")]
+
+
+def test_add_manual_image_validates_and_records(tmp_path):
+    import argparse
+    import fetch_car_images as f
+
+    jpeg = b"\xff\xd8\xff" + b"0" * 100
+    none = lambda b, m: api()                                            # Wikimedia không có ảnh
+    ns = argparse.Namespace(out=str(tmp_path), add="kia/rondo", url="https://example.com/a/Kia%20Rondo.jpg", author="Ai đó", license="CC BY 4.0",
+                            drop=None, only=None, top=1, min_listings=1, clean="x", refresh=False, dry_run=False, max_bytes=800_000, delay=0)
+    assert f.run(ns, fetch_fn=lambda u: jpeg, search_fn=none) == {"ok": 1}
+    row = f.read_credits(tmp_path / "CREDITS.csv")[("kia", "rondo")]
+    assert row["file"] == "kia/rondo.jpg" and row["license"] == "CC BY 4.0" and (tmp_path / "kia/rondo.jpg").exists()
+    ns.url = "http://example.com/a.jpg"
+    assert f.run(ns, fetch_fn=lambda u: jpeg, search_fn=none) == {"error": 1}          # chỉ nhận https
+    ns.url = "https://example.com/page"
+    assert f.run(ns, fetch_fn=lambda u: b"<html>", search_fn=none) == {"error": 1}      # không phải ảnh
+
+
+def test_wikimedia_has_priority_over_manual_url(tmp_path):
+    import argparse
+    import fetch_car_images as f
+
+    got = []
+    def fch(u):
+        got.append(u)
+        return b"\xff\xd8\xff\xe0WIKI" if "upload" in u or "Vios" in u or "thumb" in u else b"\xff\xd8\xff\xe0MANUAL"
+    def wiki(b, m):
+        return api(page(1, "File:Toyota Vios 2019.jpg")) if (b, m) == ("toyota", "vios") else api()
+    man = tmp_path / "manual.csv"
+    man.write_text("model,url,author,license\ntoyota/vios,https://example.com/manual-vios.jpg,X,CC BY 4.0\n"
+                   "kia/rondo,https://example.com/manual-rondo.jpg,Y,CC BY 4.0\n", encoding="utf-8")
+    ns = argparse.Namespace(out=str(tmp_path / "img"), add=None, url=None, author=None, license=None, manual_file=str(man), clean="x", top=5, min_listings=1,
+                            only=["toyota/vios", "kia/rondo"], drop=None, refresh=False, dry_run=False, max_bytes=800_000, delay=0)
+    st = f.run(ns, fetch_fn=lambda u: b"\xff\xd8\xff\xe0" + (b"MANUAL" if "manual" in u else b"WIKI"), search_fn=wiki, sleep=lambda x: None)
+    assert st["ok"] == 2
+    rows = f.read_credits(tmp_path / "img" / "CREDITS.csv")
+    assert rows[("toyota", "vios")]["author"] == "Nguyen An"                            # có ảnh Wikimedia -> bỏ qua link thủ công
+    assert (tmp_path / "img/toyota/vios.jpg").read_bytes().endswith(b"WIKI")
+    assert rows[("kia", "rondo")]["author"] == "Y" and (tmp_path / "img/kia/rondo.jpg").read_bytes().endswith(b"MANUAL")
+
+    # --add: Wikimedia có ảnh thì không dùng --url, trừ khi --force-url
+    ns2 = argparse.Namespace(out=str(tmp_path / "img2"), add="toyota/vios", url="https://example.com/manual-vios.jpg", author="X", license="CC BY 4.0",
+                             drop=None, only=None, top=1, min_listings=1, clean="x", refresh=False, dry_run=False, max_bytes=800_000, delay=0)
+    f.run(ns2, fetch_fn=lambda u: b"\xff\xd8\xff\xe0" + (b"MANUAL" if "manual" in u else b"WIKI"), search_fn=wiki)
+    assert (tmp_path / "img2/toyota/vios.jpg").read_bytes().endswith(b"WIKI")
+    ns2.force_url = True
+    f.run(ns2, fetch_fn=lambda u: b"\xff\xd8\xff\xe0MANUAL", search_fn=wiki)
+    assert (tmp_path / "img2/toyota/vios.jpg").read_bytes().endswith(b"MANUAL")
