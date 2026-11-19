@@ -71,8 +71,8 @@ export default function RecommendPage() {
   const yMin = yearMeta?.type === 'number' ? yearMeta.min : null
   const yMax = yearMeta?.type === 'number' ? yearMeta.max : null
 
-  async function submit(ev: FormEvent) {
-    ev.preventDefault()
+  async function submit(ev?: FormEvent) {
+    ev?.preventDefault()
     const e: Record<string, string> = {}
     const lo = f.min ? Number(f.min) : undefined
     const hi = f.max ? Number(f.max) : undefined
@@ -102,6 +102,9 @@ export default function RecommendPage() {
       setMsg({ kind: 'error', text: toApiError(x).message })
     } finally { setBusy(false) }
   }
+
+  // Quay lại trang với kết quả đã lưu: tìm lại bằng đúng bộ lọc đó để ảnh, giá, số lượng luôn là dữ liệu mới nhất từ máy chủ
+  useEffect(() => { if (saved.items) void submit() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const available = cap.data === true
   return (
