@@ -23,7 +23,7 @@ Mở http://127.0.0.1:8000
 python -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 Mở http://127.0.0.1:5000
 
-lệnh bổ sung hi cần 
+lệnh bổ sung khi cần 
 python src\preprocess.py                              # làm sạch lại dữ liệu từ Data\raw
 python scripts\download_data.py                       # tải lại dữ liệu thô nếu Data\raw thiếu hoặc hỏng
 python scripts\fetch_car_images.py --top 120          # tải thêm ảnh xe (cần Internet)
