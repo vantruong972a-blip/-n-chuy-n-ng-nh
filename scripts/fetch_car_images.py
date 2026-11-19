@@ -39,6 +39,7 @@ API = "https://commons.wikimedia.org/w/api.php"
 USER_AGENT = "CarPriceMLOpsStudentProject/1.0 (educational project; image illustrations with attribution)"
 THUMB_WIDTH = 640
 MIN_WIDTH = 800                      # ảnh gốc tối thiểu, để thumbnail 640 px không bị phóng to
+RELAXED = False                      # --relaxed: nới lỏng tên liền kề, mô tả ảnh, tỷ lệ, số kết quả (giấy phép và từ khóa tiêu đề vẫn giữ)
 ASPECT_RANGE = (1.2, 2.3)            # ảnh ngang (ngoại thất xe), loại ảnh dọc/vuông
 CREDIT_FIELDS = ["brand", "model", "file", "title", "author", "license", "license_url", "source_url"]
 
@@ -100,7 +101,7 @@ def candidate_ok(page: Dict[str, Any], brand: str, model: str) -> Optional[Dict[
     if info.get("mime") not in ("image/jpeg", "image/png"):
         return None
     w, h = int(info.get("width") or 0), int(info.get("height") or 0)
-    if w < MIN_WIDTH or h <= 0 or not (ASPECT_RANGE[0] <= w / h <= ASPECT_RANGE[1]):
+    if w < MIN_WIDTH or h <= 0 or not ((1.0 if RELAXED else ASPECT_RANGE[0]) <= w / h <= (2.8 if RELAXED else ASPECT_RANGE[1])):
         return None
     lic = meta(info, "LicenseShortName")
     if not license_ok(lic):
@@ -112,11 +113,14 @@ def candidate_ok(page: Dict[str, Any], brand: str, model: str) -> Optional[Dict[
     sep = r"[\s\-]*"
     pat = r"\b" + sep.join(re.escape(t) for t in tokens(brand) + tokens(model)) + r"\b"
     norm = " ".join(tokens(title)) + " | " + " ".join(tokens(cats))
-    if not re.search(pat, norm):
+    if RELAXED:   # chỉ cần có đủ các từ của hãng và dòng trong tiêu đề hoặc danh mục
+        if not all(t in set(tokens(title + " " + cats)) or t in norm.replace(" ", "") for t in tokens(brand) + tokens(model)):
+            return None
+    elif not re.search(pat, norm):
         return None
     if BAD_WORDS.search(title + " " + cats):
         return None
-    if BAD_DESC.search(desc):   # mô tả ảnh cũng cho biết ảnh chụp chi tiết, xe đua hay xe trưng bày ý tưởng
+    if not RELAXED and BAD_DESC.search(desc):   # mô tả ảnh cũng cho biết ảnh chụp chi tiết, xe đua hay xe trưng bày ý tưởng
         return None
     thumb = info.get("thumburl") or info.get("url")
     if not thumb:
@@ -158,7 +162,7 @@ def fetch(url: str, retries: int = 3, timeout: int = 40) -> bytes:
 
 def _search_one(query: str) -> Dict[str, Any]:
     q = {"action": "query", "format": "json", "generator": "search", "gsrnamespace": "6", "gsrsearch": query,
-         "gsrlimit": "20", "prop": "imageinfo", "iiprop": "url|mime|size|extmetadata", "iiurlwidth": str(THUMB_WIDTH),
+         "gsrlimit": "50" if RELAXED else "20", "prop": "imageinfo", "iiprop": "url|mime|size|extmetadata", "iiurlwidth": str(THUMB_WIDTH),
          "iiextmetadatafilter": "Artist|LicenseShortName|LicenseUrl|ImageDescription|Categories"}
     return json.loads(fetch(API + "?" + urllib.parse.urlencode(q)).decode("utf-8"))
 
@@ -289,10 +293,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--only", nargs="*", help="chỉ các dòng dạng hãng/dòng, ví dụ toyota/vios")
     ap.add_argument("--delay", type=float, default=1.0, help="giây nghỉ giữa các yêu cầu")
     ap.add_argument("--max-bytes", type=int, default=800_000)
+    ap.add_argument("--relaxed", action="store_true", help="nới lỏng bộ lọc (tên liền kề, mô tả, tỷ lệ, 50 kết quả); PHẢI xem lại review.html")
     ap.add_argument("--refresh", action="store_true", help="tải lại cả dòng đã có ảnh")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--drop", help="xóa ảnh đã chọn sai, dạng hãng/dòng")
-    return 0 if run(ap.parse_args(argv)) is not None else 1
+    args = ap.parse_args(argv)
+    global RELAXED
+    RELAXED = bool(args.relaxed)
+    return 0 if run(args) is not None else 1
 
 
 if __name__ == "__main__":
