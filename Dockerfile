@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- Giai đoạn 2: API FastAPI + giao diện đã build ---
-FROM python:3.11-slim
+FROM python:3.12-slim   
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 COPY requirements.txt .

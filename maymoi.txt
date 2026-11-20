@@ -1,31 +1,40 @@
--- Tải tài nguyên và cài thư viện
+-- Chuẩn bị (Python 3.12, Node.js, Git, Docker Desktop)
+python --version
+git clone https://github.com/vantruong972a-blip/-n-chuy-n-ng-nh.git MLOPS
 cd MLOPS
 python -m pip install -r requirements.txt
 python -m pip install -r requirements-dev.txt
 
-Huấn luyện mô hình (bắt buộc, vì mô hình không nằm trên git)
+-- Huấn luyện mô hình (bắt buộc, vì mô hình không nằm trên git)
 python src\train_supervised.py --test-size 0.2
 
-Kiểm tra
+-- Kiểm tra
 python -m pytest
 
-Build giao diện web đẹp (cần Node.js, làm một lần)
+-- Cách 1: chạy trực tiếp
 cd frontend
 npm install
 npm run build
 cd ..
-
--- Chạy web
 python -m uvicorn app.main:app
 Mở http://127.0.0.1:8000
 
--- MLFOW
+-- Cách 2: chạy bằng Docker (cần đã huấn luyện, có thư mục models)
+docker compose build api
+docker compose up api
+Mở http://localhost:8000
+Kiểm tra: docker ps (STATUS phải là healthy)
+Tắt: Ctrl+C rồi docker compose down
+
+-- MLflow
 python -m mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
 Mở http://127.0.0.1:5000
 
-lệnh bổ sung khi cần 
-python src\preprocess.py                              # làm sạch lại dữ liệu từ Data\raw
-python scripts\download_data.py                       # tải lại dữ liệu thô nếu Data\raw thiếu hoặc hỏng
-python scripts\fetch_car_images.py --top 120          # tải thêm ảnh xe (cần Internet)
-python scripts\register_champion.py                   # đăng ký lại mô hình đang phục vụ vào MLflow Registry
-python src\train_supervised.py --no-mlflow            # train mà không ghi MLflow
+-- Lệnh bổ sung khi cần
+python src\preprocess.py                       # làm sạch lại dữ liệu từ Data\raw
+python scripts\download_data.py                # tải lại dữ liệu thô nếu Data\raw thiếu
+python scripts\fetch_car_images.py --top 1000 --min-listings 1 --delay 3   # tải ảnh còn thiếu, Wikimedia trước
+python scripts\fetch_car_images.py --add "hang/dong" --url "LINK-ANH" --author "Nguon"   # thêm ảnh bằng link
+python scripts\register_champion.py            # đăng ký mô hình đang phục vụ vào MLflow Registry
+python src\train_supervised.py --no-mlflow     # train mà không ghi MLflow
+docker compose build --no-cache api            # build lại hoàn toàn khi đổi thư viện
