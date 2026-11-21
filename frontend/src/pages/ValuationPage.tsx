@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, History, RotateCcw, Sparkles, TriangleAlert } from 'lucide-react'
+import { Car, CheckCircle2, History, MapPin, RotateCcw, Sparkles, TriangleAlert, Wrench } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { FormField } from '../components/FormField'
 import { InputSummary } from '../components/InputSummary'
@@ -19,6 +19,8 @@ import { getModelStrengths } from '../services/monitoringService'
 import { getMeta, predictPrice, sendFeedback } from '../services/predictionService'
 import type { MetaResponse, PredictResponse, PredictValues } from '../types/api'
 import { toApiError } from '../hooks/useAsync'
+
+const GROUP_ICONS = [Car, Wrench, MapPin]
 
 const EXAMPLE: FormValues = { brand: 'toyota', model: 'vios', year: '2018', mileage_km: '60000', transmission: 'automatic', fuel_type: 'gasoline' }
 
@@ -220,17 +222,20 @@ export default function ValuationPage() {
               {meta.error.messages.join(' ')}
             </Alert>
           )}
-          {m && grouped?.map((g) => (
+          {m && grouped?.map((g, gi) => {
+            const Icon = GROUP_ICONS[gi % GROUP_ICONS.length]
+            return (
             <fieldset key={g.title} className="card p-5 sm:p-6">
-              <legend className="float-left mb-1 w-full px-0 text-lg font-bold text-navy-deep">{g.title}</legend>
-              <p className="clear-both mb-4 text-sm text-mute">{g.description}</p>
+              <legend className="float-left mb-1 w-full px-0"><span className="flex items-center gap-3 text-lg font-bold text-navy-deep"><span className="icon-tile"><Icon className="size-5" aria-hidden /></span>{g.title}</span></legend>
+              <p className="clear-both mb-4 pl-[3.25rem] text-sm text-mute">{g.description}</p>
               <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
                 {g.features.map((f) => (
                   <FormField key={f.name} feature={f} meta={m} value={values[f.name] ?? ''} error={errors[f.name]} disabled={busy} brand={values.brand ?? ''} onChange={setField} />
                 ))}
               </div>
             </fieldset>
-          ))}
+            )
+          })}
           {m && <ModelPicker meta={m} value={modelChoice} onChange={setModelChoice} disabled={busy} strengths={strengths.data ?? null} />}
           {apiErr && (
             <Alert kind="error" title={apiErr.isNetwork ? 'Không kết nối được máy chủ' : 'Không thể dự đoán giá'}>

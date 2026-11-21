@@ -61,7 +61,7 @@ function Header() {
 
 function Footer() {
   return (
-    <footer className="mt-20 bg-navy-deep text-white/80">
+    <footer className="bg-navy-deep text-white/80">
       <div className="container-page grid gap-10 py-12 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
           <Logo light />
@@ -103,7 +103,7 @@ export function MainLayout() {
         Bỏ qua điều hướng
       </a>
       <Header />
-      <main id="noi-dung" tabIndex={-1} className="min-h-[60vh] outline-none">
+      <main id="noi-dung" tabIndex={-1} className={`min-h-[60vh] outline-none ${pathname === '/' ? 'bg-white' : 'bg-[#f5f7fa]'}`}>
         <Outlet />
       </main>
       <Footer />

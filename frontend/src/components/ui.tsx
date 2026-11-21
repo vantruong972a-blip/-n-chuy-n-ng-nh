@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { CheckCircle2, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react'
 import { Link, type LinkProps } from 'react-router-dom'
+import { CarOutline } from './CarBlueprint'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'light' | 'outlineLight' | 'danger'
 const VARIANT: Record<Variant, string> = {
@@ -55,10 +56,11 @@ export const Skeleton = ({ className = '' }: { className?: string }) => <div cla
 
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
-    <header className="border-b border-line bg-haze">
-      <div className="container-page py-9 sm:py-12">
-        <h1 className="text-3xl font-extrabold text-navy-deep sm:text-4xl">{title}</h1>
-        {children && <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-soft">{children}</p>}
+    <header className="grid-bg relative overflow-hidden bg-navy-deep text-white">
+      <CarOutline className="pointer-events-none absolute -right-8 top-1/2 hidden w-[480px] -translate-y-1/2 opacity-[0.12] lg:block" />
+      <div className="container-page relative py-10 sm:py-14">
+        <h1 className="text-3xl font-extrabold sm:text-4xl">{title}</h1>
+        {children && <p className="mt-3 max-w-2xl text-base leading-relaxed text-white/75">{children}</p>}
       </div>
     </header>
   )

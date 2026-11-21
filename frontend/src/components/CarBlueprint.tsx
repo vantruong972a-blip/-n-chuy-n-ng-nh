@@ -42,11 +42,23 @@ export function CarBlueprint({ className = '' }: { className?: string }) {
   )
 }
 
+/** Nét vẽ xe mờ dùng làm hoa văn nền ở đầu trang (trang trí, không mang thông tin). */
+export function CarOutline({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 800 400" className={className} aria-hidden fill="none" stroke="#fff" strokeWidth="2.5" strokeLinejoin="round">
+      <path d={PARTS[0].d} /><path d={PARTS[1].d} strokeOpacity={0.7} /><path d={PARTS[2].d} strokeOpacity={0.6} />
+      <circle cx="190" cy="254" r="42" /><circle cx="190" cy="254" r="22" strokeOpacity={0.6} />
+      <circle cx="560" cy="254" r="42" /><circle cx="560" cy="254" r="22" strokeOpacity={0.6} />
+    </svg>
+  )
+}
+
 /** Hình xe đơn giản dùng làm ảnh giữ chỗ khi chưa có ảnh thật (không gắn với một mẫu xe cụ thể). */
-export function CarPlaceholder({ className = '' }: { className?: string }) {
+export function CarPlaceholder({ className = '', label }: { className?: string; label?: string }) {
   return (
     <svg viewBox="0 0 800 400" className={className} role="img" aria-label="Chưa có ảnh xe">
-      <rect width="800" height="400" fill="#f3f5f8" />
+      <rect width="800" height="400" fill="#eef1f6" />
+      {label && <text x="400" y="96" textAnchor="middle" fill="#c5cde0" fontSize="64" fontWeight="800" fontFamily="inherit" letterSpacing="2">{label.toUpperCase()}</text>}
       <g fill="none" stroke="#9aa6bd" strokeWidth="3" strokeLinejoin="round" transform="translate(0 20)">
         <path d={PARTS[0].d} />
         <path d={PARTS[1].d} strokeOpacity={0.7} />

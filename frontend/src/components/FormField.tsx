@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { Combobox } from './Combobox'
 import { FIELD_HELP, formatBrand, valueLabel } from '../lib/labels'
 import { num, sanitizeNumberInput } from '../lib/validation'
 import type { FeatureMeta, MetaResponse } from '../types/api'
@@ -44,14 +45,16 @@ export function FormField({ feature: f, meta, value, error, disabled, brand, onC
       </>
     )
   } else {
-    const opts = f.options.map((o) => ({ value: o, label: valueLabel(f.name, o) }))
-    if (f.name === 'brand') opts.forEach((o) => (o.label = formatBrand(o.value)))
+    const opts = f.options.map((o) => ({
+      value: o,
+      label: f.name === 'brand' ? formatBrand(o) : valueLabel(f.name, o),
+      hint: f.name === 'brand' && (meta.brand_models[o] ?? []).length ? `${(meta.brand_models[o] ?? []).length} dòng xe` : undefined,
+    }))
     opts.sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+    const ph = f.name === 'brand' ? 'Chọn hoặc gõ tên hãng' : f.required ? `Chọn ${f.label.toLowerCase()}` : 'Không chọn'
     control = (
-      <select {...common} className="input" value={value} onChange={(e) => onChange(f.name, e.target.value)}>
-        <option value="">{f.required ? `Chọn ${f.label.toLowerCase()}` : 'Không chọn'}</option>
-        {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <Combobox id={id} options={opts} value={value} onChange={(v) => onChange(f.name, v)} placeholder={ph} emptyLabel={f.required ? undefined : 'Không chọn'}
+        disabled={disabled} invalid={Boolean(error)} describedBy={describedBy} required={f.required} noResults="Không có lựa chọn nào khớp" />
     )
   }
 

@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { SearchX, X } from 'lucide-react'
+import { SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { CarCard } from '../components/CarCard'
+import { Combobox, type ComboOption } from '../components/Combobox'
 import { NotIntegrated } from '../components/NotIntegrated'
 import { Alert, Button, PageHeader, Skeleton } from '../components/ui'
 import { useAsync, toApiError } from '../hooks/useAsync'
@@ -20,6 +21,13 @@ function loadSaved(): Partial<Saved> {
   try { const raw = sessionStorage.getItem(STORE); return raw ? (JSON.parse(raw) as Partial<Saved>) : {} } catch { return {} }
 }
 
+const BUDGETS = [
+  { label: 'Dưới 300 triệu', min: '', max: '300' },
+  { label: '300 – 600 triệu', min: '300', max: '600' },
+  { label: '600 triệu – 1 tỷ', min: '600', max: '1000' },
+  { label: 'Trên 1 tỷ', min: '1000', max: '' },
+]
+
 const UNKNOWN = ['other', 'khac', 'khác']
 // Hãng chỉ có dòng "other" thì trang gợi ý không có xe nào để hiện nên không đưa vào danh sách chọn.
 const hasListableModels = (m: MetaResponse | undefined, brand: string) => {
@@ -35,10 +43,7 @@ function Select({ id, label, meta, name, value, onChange, keep }: { id: string; 
   return (
     <div>
       <label htmlFor={id} className="label">{label}</label>
-      <select id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)} disabled={!f}>
-        <option value="">Tất cả</option>
-        {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <Combobox id={id} options={opts} value={value} onChange={onChange} emptyLabel="Tất cả" placeholder="Tất cả" disabled={!f} noResults="Không có lựa chọn nào khớp" />
     </div>
   )
 }
@@ -67,6 +72,14 @@ export default function RecommendPage() {
     if (f.model && !list.includes(f.model)) list.push(f.model)   // giữ giá trị đã lưu từ lần tìm trước
     return list.sort((a, b) => formatModel(a).localeCompare(formatModel(b), 'vi'))
   })()
+  const brandOptions: ComboOption[] = (cat(meta.data, 'brand')?.options ?? [])
+    .filter((o) => hasListableModels(meta.data, o))
+    .map((o) => {
+      const n = (meta.data?.brand_models[o] ?? []).filter((m) => !UNKNOWN.includes(m.toLowerCase())).length
+      return { value: o, label: formatBrand(o), hint: n ? `${n} dòng xe` : undefined }
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+  const modelComboOptions: ComboOption[] = modelOptions.map((o) => ({ value: o, label: formatModel(o) }))
   const yearMeta = meta.data?.features.find((x) => x.name === 'year')
   const yMin = yearMeta?.type === 'number' ? yearMeta.min : null
   const yMax = yearMeta?.type === 'number' ? yearMeta.max : null
@@ -104,7 +117,11 @@ export default function RecommendPage() {
   }
 
   // Quay lại trang với kết quả đã lưu: tìm lại bằng đúng bộ lọc đó để ảnh, giá, số lượng luôn là dữ liệu mới nhất từ máy chủ
-  useEffect(() => { if (saved.items) void submit() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!saved.items) return
+    const t = setTimeout(() => { void submit() }, 0)
+    return () => clearTimeout(t)
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const available = cap.data === true
   return (
@@ -112,7 +129,7 @@ export default function RecommendPage() {
       <PageHeader title="Gợi ý xe phù hợp">Chọn ngân sách và nhu cầu, hệ thống sẽ tìm những xe có đặc điểm và mức giá tương đồng.</PageHeader>
       <div className="container-page space-y-8 py-10">
         {cap.loading ? <Skeleton className="h-24" /> : available
-          ? <Alert kind="success" title="Máy chủ đã có API gợi ý xe">Bạn có thể tìm xe bằng bộ lọc bên dưới.</Alert>
+          ? null
           : (
             <NotIntegrated title="Chức năng gợi ý xe chưa được tích hợp">
               <p>Backend hiện chỉ có API định giá và giám sát. Chưa có nguồn dữ liệu danh sách xe, ảnh xe hay API gợi ý, nên trang này <strong>không hiển thị xe nào</strong> để tránh đưa ra dữ liệu giả.</p>
@@ -122,8 +139,18 @@ export default function RecommendPage() {
           )}
 
         <form onSubmit={submit} noValidate className="card p-5 sm:p-7" aria-label="Bộ lọc tìm xe">
-          <h2 className="text-lg font-bold text-navy-deep">Tiêu chí của bạn</h2>
-          <div className="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex items-center gap-3">
+            <span className="icon-tile"><SlidersHorizontal className="size-5" aria-hidden /></span>
+            <div><h2 className="text-lg font-bold leading-tight text-navy-deep">Tiêu chí của bạn</h2><p className="text-sm text-mute">Bỏ trống những gì bạn chưa quan tâm.</p></div>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-mute">Chọn nhanh ngân sách:</span>
+            {BUDGETS.map((b) => (
+              <button key={b.label} type="button" className={`chip ${f.min === b.min && f.max === b.max ? '!border-navy !bg-azure-soft !text-navy' : ''}`}
+                aria-pressed={f.min === b.min && f.max === b.max} onClick={() => setF((x) => ({ ...x, min: b.min, max: b.max }))}>{b.label}</button>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label htmlFor="ns-min" className="label">Ngân sách tối thiểu</label>
               <div className="relative"><input id="ns-min" inputMode="numeric" className="input pr-16" placeholder="Ví dụ: 300" value={f.min} onChange={(e) => num('min')(e.target.value)} /><span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-sm text-mute">triệu</span></div>
@@ -133,13 +160,13 @@ export default function RecommendPage() {
               <div className="relative"><input id="ns-max" inputMode="numeric" className="input pr-16" placeholder="Ví dụ: 600" value={f.max} aria-invalid={errors.max ? true : undefined} onChange={(e) => num('max')(e.target.value)} /><span className="pointer-events-none absolute inset-y-0 right-3 grid place-items-center text-sm text-mute">triệu</span></div>
               {errors.max && <p role="alert" className="mt-1 text-sm font-medium text-bad">{errors.max}</p>}
             </div>
-            <Select id="hang" label="Hãng xe" meta={meta.data} name="brand" value={f.brand} onChange={(v) => set('brand', v)} keep={(o) => hasListableModels(meta.data, o)} />
+            <div>
+              <label htmlFor="hang" className="label">Hãng xe</label>
+              <Combobox id="hang" options={brandOptions} value={f.brand} onChange={(v) => set('brand', v)} emptyLabel="Tất cả hãng xe" placeholder="Chọn hoặc gõ tên hãng" disabled={!meta.data} noResults="Không có hãng nào khớp" />
+            </div>
             <div>
               <label htmlFor="dong" className="label">Dòng xe</label>
-              <select id="dong" className="input" value={f.model} onChange={(e) => set('model', e.target.value)} disabled={!f.brand}>
-                <option value="">{f.brand ? 'Tất cả dòng xe' : 'Chọn hãng xe trước'}</option>
-                {modelOptions.map((o) => <option key={o} value={o}>{formatModel(o)}</option>)}
-              </select>
+              <Combobox id="dong" options={modelComboOptions} value={f.model} onChange={(v) => set('model', v)} emptyLabel="Tất cả dòng xe" placeholder={f.brand ? 'Chọn hoặc gõ tên dòng xe' : 'Chọn hãng xe trước'} disabled={!f.brand} noResults="Không có dòng xe nào khớp" />
             </div>
             <div>
               <label htmlFor="nam" className="label">Năm sản xuất từ</label>
@@ -199,6 +226,18 @@ export default function RecommendPage() {
               </p>
             )}
           </Alert>
+        )}
+        {busy && (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy aria-label="Đang tìm xe">
+            {[0, 1, 2].map((i) => <div key={i} className="card overflow-hidden"><Skeleton className="aspect-[16/10] rounded-none" /><div className="space-y-3 p-5"><Skeleton className="h-6 w-2/3" /><Skeleton className="h-8 w-1/2" /><Skeleton className="h-9" /></div></div>)}
+          </div>
+        )}
+        {!busy && !items && !msg && available && info.notes.length === 0 && (
+          <div className="rounded-[var(--radius-card)] border border-dashed border-line bg-white/60 p-10 text-center">
+            <SearchX className="mx-auto size-9 text-navy/30" aria-hidden />
+            <h2 className="mt-3 text-lg font-bold text-navy-deep">Chưa có kết quả</h2>
+            <p className="mx-auto mt-1 max-w-md text-sm text-mute">Chọn ngân sách hoặc hãng xe ở trên rồi bấm “Tìm xe phù hợp”. Bạn có thể gõ tên hãng để lọc nhanh danh sách.</p>
+          </div>
         )}
         {items && items.length === 0 && (
           <div className="card p-10 text-center"><SearchX className="mx-auto size-9 text-mute" aria-hidden /><h2 className="mt-3 text-lg font-bold text-navy-deep">Không có xe nào khớp</h2><p className="mt-1 text-sm text-mute">Hãy nới rộng ngân sách hoặc bỏ bớt bộ lọc.</p></div>

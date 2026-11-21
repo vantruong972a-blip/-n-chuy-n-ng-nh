@@ -14,6 +14,15 @@ const STEPS = [
   { title: 'Nhận giá tham khảo', text: 'Kết quả kèm tên mô hình, phiên bản và cảnh báo. Bạn có thể gửi lại giá thực tế để hệ thống theo dõi sai số.' },
 ]
 
+const FEATURES = [
+  { icon: Calculator, title: 'Định giá ô tô', primary: true, to: '/dinh-gia', cta: 'Bắt đầu định giá',
+    text: 'Nhập hãng, dòng xe, năm sản xuất và các thông số bạn biết; trường nào chưa rõ có thể để trống. Kết quả cho thấy giá của cả ba mô hình để bạn thấy độ phân tán của dự đoán.' },
+  { icon: Search, title: 'Gợi ý xe phù hợp', to: '/goi-y', cta: 'Tìm xe theo nhu cầu',
+    text: 'Chọn ngân sách, hãng, dòng xe và nhu cầu. Có ba cách gợi ý: theo hồ sơ nội dung, lọc theo tiêu chí và chấm điểm, hoặc tìm xe tương đồng bằng KNN.' },
+  { icon: Activity, title: 'Quản trị và giám sát', to: '/quan-tri', cta: 'Mở trang quản trị',
+    text: 'Độ chính xác từng mô hình, độ trễ API, lệch phân phối dữ liệu (PSI) và sai số thực tế khi có phản hồi của người dùng.' },
+]
+
 function HeroStats() {
   const metrics = useAsync(getMetrics, 'metrics')
   const meta = useAsync(getMeta, 'meta')
@@ -40,7 +49,7 @@ function HeroStats() {
 export default function HomePage() {
   return (
     <>
-      <section className="relative overflow-hidden bg-navy-deep text-white" style={{ backgroundImage: 'linear-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.045) 1px, transparent 1px)', backgroundSize: '44px 44px' }}>
+      <section className="grid-bg relative overflow-hidden bg-navy-deep text-white">
         <div className="container-page grid items-center gap-8 py-14 sm:py-20 lg:grid-cols-[1fr_1.1fr] lg:py-24">
           <div>
             <h1 className="text-4xl font-extrabold leading-[1.1] sm:text-5xl lg:text-[3.4rem]">
@@ -66,31 +75,15 @@ export default function HomePage() {
 
       <section className="container-page py-16 sm:py-20">
         <h2 className="max-w-2xl text-3xl font-extrabold text-navy-deep sm:text-4xl">Ba việc bạn có thể làm ở đây</h2>
-        <div className="mt-10 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-          <article className="card flex flex-col justify-between border-navy/20 p-7 sm:p-9">
-            <div>
-              <Calculator className="size-9 text-navy" aria-hidden />
-              <h3 className="mt-5 text-2xl font-bold text-navy-deep">Định giá ô tô</h3>
-              <p className="mt-3 max-w-xl leading-relaxed text-ink-soft">
-                Nhập hãng, dòng xe, năm sản xuất và các thông số bạn biết. Mỗi trường nhập được kiểm tra ngay; trường nào chưa rõ có thể để trống. Kết quả cho thấy giá của cả ba mô hình để bạn thấy độ phân tán của dự đoán.
-              </p>
-            </div>
-            <div className="mt-7"><ButtonLink to="/dinh-gia">Bắt đầu định giá<ArrowRight className="size-4" aria-hidden /></ButtonLink></div>
-          </article>
-          <div className="grid gap-5">
-            <article className="card p-6">
-              <Search className="size-7 text-navy" aria-hidden />
-              <h3 className="mt-4 text-lg font-bold text-navy-deep">Gợi ý xe phù hợp</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">Lọc theo ngân sách và nhu cầu. Máy chủ chưa có API gợi ý nên chức năng này chưa hoạt động; giao diện đã sẵn sàng để nối KNN và lọc theo nội dung.</p>
-              <Link to="/goi-y" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-navy hover:underline">Xem trạng thái<ArrowRight className="size-4" aria-hidden /></Link>
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          {FEATURES.map(({ icon: Icon, title, text, to, cta, primary }) => (
+            <article key={title} className={`card group flex flex-col p-7 transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)] ${primary ? 'border-navy/30 bg-azure-soft/40' : ''}`}>
+              <span className="icon-tile size-12 rounded-2xl"><Icon className="size-6" aria-hidden /></span>
+              <h3 className="mt-5 text-xl font-bold text-navy-deep">{title}</h3>
+              <p className="mt-3 flex-1 text-[15px] leading-relaxed text-ink-soft">{text}</p>
+              <div className="mt-6"><ButtonLink to={to} variant={primary ? 'primary' : 'secondary'} className="w-full sm:w-auto">{cta}<ArrowRight className="size-4" aria-hidden /></ButtonLink></div>
             </article>
-            <article className="card p-6">
-              <Activity className="size-7 text-navy" aria-hidden />
-              <h3 className="mt-4 text-lg font-bold text-navy-deep">Quản trị và giám sát</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-soft">Độ chính xác từng mô hình, độ trễ API, lệch phân phối dữ liệu (PSI) và sai số thực tế khi có phản hồi.</p>
-              <Link to="/quan-tri" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-navy hover:underline">Mở trang quản trị<ArrowRight className="size-4" aria-hidden /></Link>
-            </article>
-          </div>
+          ))}
         </div>
       </section>
 

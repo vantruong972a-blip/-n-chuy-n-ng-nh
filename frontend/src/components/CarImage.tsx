@@ -10,7 +10,7 @@ export function CarImage({ car, variant = 'card' }: { car: CarListing; variant?:
   const alt = `${formatBrand(car.brand)} ${formatModel(car.model)}`
   return (
     <div className="relative size-full bg-haze">
-      {car.image_url ? <img src={car.image_url} alt={`Ảnh minh họa ${alt}`} loading={variant === 'card' ? 'lazy' : 'eager'} className="size-full object-cover" /> : <CarPlaceholder className="size-full" />}
+      {car.image_url ? <img src={car.image_url} alt={`Ảnh minh họa ${alt}`} loading={variant === 'card' ? 'lazy' : 'eager'} className="size-full object-cover" /> : <CarPlaceholder className="size-full" label={formatBrand(car.brand)} />}
       <span className="absolute bottom-2 left-2 rounded bg-white/90 px-2 py-0.5 text-xs text-mute">
         {car.image_url ? 'Ảnh minh họa dòng xe' : 'Chưa có ảnh xe'}
       </span>
