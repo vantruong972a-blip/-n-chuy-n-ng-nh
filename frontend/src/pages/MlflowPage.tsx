@@ -10,15 +10,15 @@ const ALGO: Record<string, string> = { linear_regression: 'Linear Regression', r
 const algoName = (a?: string | null) => (a ? ALGO[a] ?? a : '—')
 
 function Badge({ children, tone }: { children: string; tone: 'ok' | 'info' }) {
-  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${tone === 'ok' ? 'bg-green-100 text-green-800' : 'bg-azure-soft text-navy'}`}>{children}</span>
+  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${tone === 'ok' ? 'bg-ok-soft text-ok ring-1 ring-ok/20' : 'bg-azure-soft text-navy ring-1 ring-azure/20'}`}>{children}</span>
 }
 
 function RunsTable({ runs }: { runs: MlflowRun[] }) {
   return (
     <div className="card overflow-x-auto" role="region" aria-label="Danh sách lần huấn luyện" tabIndex={0}>
-      <table className="w-full min-w-[860px] text-left text-sm">
+      <table className="data w-full min-w-[860px] text-left text-sm">
         <caption className="sr-only">Các lần huấn luyện ghi trong MLflow. Sai số tính bằng triệu đồng trên tập kiểm tra.</caption>
-        <thead className="bg-haze text-xs text-mute">
+        <thead>
           <tr>
             {['Mô hình', 'Tỷ lệ chia', 'Thời điểm', 'RMSE validation (triệu ₫)', 'RMSE test (triệu ₫)', 'MAE test (triệu ₫)', 'R² test', 'Sai số trung vị', 'Trạng thái'].map((h) => <th key={h} scope="col" className="px-4 py-3 font-semibold">{h}</th>)}
           </tr>
@@ -59,7 +59,7 @@ export default function MlflowPage() {
       <PageHeader title="Theo dõi huấn luyện (MLflow)">
         Mỗi lần huấn luyện được ghi lại trong MLflow: tham số, chỉ số trên tập kiểm tra và mô hình. Mô hình đang phục vụ API được đăng ký vào Model Registry với bí danh “champion”.
       </PageHeader>
-      <div className="container-page space-y-8 py-10">
+      <div className="container-page lift space-y-8 pb-12">
         {q.loading && <Skeleton className="h-72" />}
         {q.error && <Alert kind="error" title="Không tải được dữ liệu MLflow" action={<Button variant="secondary" onClick={q.reload}>Thử lại</Button>}>{q.error.message}</Alert>}
         {d && !d.available && <Alert kind="warn" title="Chưa có dữ liệu MLflow">{d.reason}</Alert>}
@@ -68,7 +68,7 @@ export default function MlflowPage() {
             <section aria-labelledby="registry" className="space-y-3">
               <h2 id="registry" className="text-xl font-bold text-navy-deep">Model Registry</h2>
               {d.registry ? (
-                <div className="card divide-y divide-line">
+                <div className="card divide-y divide-line overflow-hidden">
                   {d.registry.versions.map((v) => (
                     <div key={v.version} className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3 text-sm">
                       <span className="font-bold text-ink">{d.registry?.name} · phiên bản {v.version}</span>
@@ -99,12 +99,12 @@ export default function MlflowPage() {
               </div>
               <RunsTable runs={shown} />
             </section>
-            <section aria-labelledby="goc" className="card flex flex-wrap items-center justify-between gap-4 p-5">
+            <section aria-labelledby="goc" className="card price-hero flex flex-wrap items-center justify-between gap-4 p-6 text-white">
               <div className="max-w-2xl">
-                <h2 id="goc" className="font-bold text-navy-deep">Giao diện MLflow gốc</h2>
-                <p className="mt-1 text-sm leading-relaxed text-mute">Có biểu đồ so sánh, tệp kết quả và mô hình đã lưu. Cần khởi động riêng bằng <code className="rounded bg-haze px-1.5 py-0.5 text-xs">scripts\start_mlflow.ps1</code> (hoặc <code className="rounded bg-haze px-1.5 py-0.5 text-xs">docker compose up</code>), cổng 5000.</p>
+                <h2 id="goc" className="text-lg font-bold text-white">Giao diện MLflow gốc</h2>
+                <p className="mt-1 text-sm leading-relaxed text-white/75">Có biểu đồ so sánh, tệp kết quả và mô hình đã lưu. Cần khởi động riêng bằng <code className="rounded bg-white/15 px-1.5 py-0.5 text-xs text-white">scripts\start_mlflow.ps1</code> (hoặc <code className="rounded bg-white/15 px-1.5 py-0.5 text-xs text-white">docker compose up</code>), cổng 5000.</p>
               </div>
-              <a href={mlflowUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm font-semibold text-navy hover:border-navy">Mở MLflow gốc<ExternalLink className="size-4" aria-hidden /></a>
+              <a href={mlflowUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-navy hover:bg-azure-soft">Mở MLflow gốc<ExternalLink className="size-4" aria-hidden /></a>
             </section>
           </>
         )}

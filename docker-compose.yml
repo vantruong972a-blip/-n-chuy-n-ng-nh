@@ -7,6 +7,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./Data/images:/app/Data/images:ro    # giữ log dự đoán/lỗi/feedback ngoài container
+      - ./mlflow.db:/app/mlflow.db
   mlflow:
     image: car-price-api
     depends_on: [api]

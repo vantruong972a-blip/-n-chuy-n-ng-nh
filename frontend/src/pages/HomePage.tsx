@@ -37,7 +37,7 @@ function HeroStats() {
     )
   }
   return (
-    <dl className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4">
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-4 lg:divide-x lg:divide-line [&>*]:lg:pl-6 [&>*:first-child]:lg:pl-0">
       <Stat loading={loading} label="Tin rao đã dùng để học và kiểm tra" value={metrics.data && formatInt(metrics.data.n_train + metrics.data.n_test)} note="Từ Bonbanh và Chợ Tốt, sau khi làm sạch" />
       <Stat loading={loading} label="Mô hình cùng dự đoán" value={meta.data && Object.keys(meta.data.models).length} note="Linear Regression, Random Forest, XGBoost" />
       <Stat loading={loading} label="Sai số tương đối trung vị" value={best && formatPercent(best.medAPE)} note={metrics.data && `Mô hình tốt nhất, trên ${formatInt(metrics.data.n_test)} xe kiểm tra chưa từng thấy`} />
@@ -50,7 +50,8 @@ export default function HomePage() {
   return (
     <>
       <section className="grid-bg relative overflow-hidden bg-navy-deep text-white">
-        <div className="container-page grid items-center gap-8 py-14 sm:py-20 lg:grid-cols-[1fr_1.1fr] lg:py-24">
+        <div className="glow pointer-events-none absolute inset-0" aria-hidden />
+        <div className="container-page relative grid items-center gap-8 pb-28 pt-14 sm:pb-32 sm:pt-20 lg:grid-cols-[1fr_1.1fr] lg:pt-24">
           <div>
             <h1 className="text-4xl font-extrabold leading-[1.1] sm:text-5xl lg:text-[3.4rem]">
               Biết xe của bạn đáng giá bao nhiêu trước khi rao bán hoặc mua.
@@ -69,12 +70,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section aria-label="Số liệu hệ thống" className="border-b border-line">
-        <div className="container-page py-10"><HeroStats /></div>
+      <section aria-label="Số liệu hệ thống" className="relative -mt-16 sm:-mt-20">
+        <div className="container-page"><div className="card p-6 sm:p-8"><HeroStats /></div></div>
       </section>
 
       <section className="container-page py-16 sm:py-20">
-        <h2 className="max-w-2xl text-3xl font-extrabold text-navy-deep sm:text-4xl">Ba việc bạn có thể làm ở đây</h2>
+        <p className="text-sm font-semibold text-azure">Bắt đầu từ đâu</p>
+        <h2 className="mt-1 max-w-2xl text-3xl font-extrabold text-navy-deep sm:text-4xl">Ba việc bạn có thể làm ở đây</h2>
         <div className="mt-10 grid gap-5 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, text, to, cta, primary }) => (
             <article key={title} className={`card group flex flex-col p-7 transition duration-200 hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)] ${primary ? 'border-navy/30 bg-azure-soft/40' : ''}`}>
@@ -87,18 +89,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="bg-haze py-16 sm:py-20">
+      <section className="bg-gradient-to-b from-haze to-white py-16 sm:py-20">
         <div className="container-page">
           <h2 className="max-w-2xl text-3xl font-extrabold text-navy-deep sm:text-4xl">Quy trình định giá bằng AI</h2>
-          <ol className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+          <ol className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((s, i) => (
-              <li key={s.title} className="relative lg:pt-7">
-                <span aria-hidden className="absolute left-0 top-0 hidden h-px w-full bg-navy/25 lg:block" />
-                <span aria-hidden className="absolute -top-[5px] left-0 hidden size-[11px] rounded-full bg-navy lg:block" />
-                <span className="grid size-9 place-items-center rounded-full bg-navy text-sm font-bold text-white lg:hidden">{i + 1}</span>
-                <p className="mt-3 text-sm font-bold text-azure lg:mt-0">Bước {i + 1}</p>
-                <h3 className="mt-1 text-lg font-bold text-navy-deep">{s.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-soft">{s.text}</p>
+              <li key={s.title} className="card relative overflow-hidden p-6">
+                <span aria-hidden className="absolute -right-1 -top-4 text-8xl font-extrabold text-azure-soft">{i + 1}</span>
+                <p className="relative text-sm font-bold text-azure">Bước {i + 1}</p>
+                <h3 className="relative mt-1 text-lg font-bold text-navy-deep">{s.title}</h3>
+                <p className="relative mt-2 text-sm leading-relaxed text-ink-soft">{s.text}</p>
               </li>
             ))}
           </ol>

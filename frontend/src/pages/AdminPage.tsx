@@ -14,7 +14,7 @@ const MODEL_COLOR: Record<string, string> = { linear_regression: '#a9bde8', rand
 
 function Section({ title, desc, children, id }: { title: string; desc?: string; children: ReactNode; id: string }) {
   return (
-    <section aria-labelledby={id} className="py-8">
+    <section aria-labelledby={id} className="pt-10">
       <h2 id={id} className="text-2xl font-extrabold text-navy-deep">{title}</h2>
       {desc && <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-ink-soft">{desc}</p>}
       <div className="mt-6">{children}</div>
@@ -23,7 +23,7 @@ function Section({ title, desc, children, id }: { title: string; desc?: string; 
 }
 
 function Panel({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
-  return <div className={`card p-5 ${className}`}><h3 className="mb-3 text-sm font-bold text-ink">{title}</h3>{children}</div>
+  return <div className={`card p-5 ${className}`}><h3 className="mb-4 border-b border-line/70 pb-3 text-sm font-bold text-navy-deep">{title}</h3>{children}</div>
 }
 
 function Fail({ err, retry, what }: { err: { message: string; status: number }; retry: () => void; what: string }) {
@@ -49,9 +49,9 @@ function Performance() {
   return (
     <div className="space-y-5">
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
+        <table className="data w-full min-w-[640px] text-left text-sm">
           <caption className="sr-only">Chỉ số các mô hình trên tập kiểm tra giữ riêng</caption>
-          <thead className="border-b border-line bg-haze text-xs text-mute"><tr>
+          <thead className="border-b border-line"><tr>
             <th scope="col" className="px-4 py-3 font-medium">Mô hình</th><th scope="col" className="px-4 py-3 font-medium">Cấu hình</th>
             <th scope="col" className="px-4 py-3 text-right font-medium">MAE (triệu)</th><th scope="col" className="px-4 py-3 text-right font-medium">RMSE (triệu)</th>
             <th scope="col" className="px-4 py-3 text-right font-medium">R²</th><th scope="col" className="px-4 py-3 text-right font-medium">MAPE</th><th scope="col" className="px-4 py-3 text-right font-medium">Sai số TB trung vị</th>
@@ -183,9 +183,9 @@ function Registry() {
   return (
     <div className="space-y-5">
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="data w-full min-w-[720px] text-left text-sm">
           <caption className="sr-only">Các mô hình đang được phục vụ</caption>
-          <thead className="border-b border-line bg-haze text-xs text-mute"><tr>
+          <thead className="border-b border-line"><tr>
             <th scope="col" className="px-4 py-3 font-medium">Tên mô hình</th><th scope="col" className="px-4 py-3 font-medium">Phiên bản</th><th scope="col" className="px-4 py-3 font-medium">Huấn luyện lúc</th>
             <th scope="col" className="px-4 py-3 font-medium">Trạng thái</th><th scope="col" className="px-4 py-3 text-right font-medium">RMSE (triệu)</th><th scope="col" className="px-4 py-3 text-right font-medium">R²</th>
           </tr></thead>
@@ -249,8 +249,8 @@ export default function AdminPage() {
   return (
     <>
       <PageHeader title="Quản trị hệ thống">Theo dõi chất lượng mô hình, tình trạng máy chủ và độ lệch dữ liệu. Trang này dành cho người vận hành đồ án; số liệu lấy trực tiếp từ API, không có dữ liệu minh họa.</PageHeader>
-      <div className="container-page divide-y divide-line pb-10">
-        <div className="flex flex-wrap items-center justify-between gap-3 py-5">
+      <div className="container-page lift pb-12">
+        <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <Health tick={tick} />
           <Button variant="secondary" onClick={refresh} loading={busy}><RefreshCw className="size-4" aria-hidden />Làm mới số liệu</Button>
         </div>

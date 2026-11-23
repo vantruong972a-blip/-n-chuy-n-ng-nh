@@ -17,32 +17,33 @@ export default function HistoryPage() {
   return (
     <>
       <PageHeader title="Lịch sử dự đoán">Các lần định giá bạn đã thực hiện trên trình duyệt này, lưu cục bộ trên máy bạn (tối đa 50 lần gần nhất). Dữ liệu không được gửi đi đâu khác.</PageHeader>
-      <div className="container-page py-10">
+      <div className="container-page lift pb-12">
         {list.length === 0 ? (
           <div className="card mx-auto max-w-lg p-10 text-center">
-            <Calculator className="mx-auto size-10 text-navy/40" aria-hidden />
+            <span className="icon-tile mx-auto size-16 rounded-2xl"><Calculator className="size-8" aria-hidden /></span>
             <h2 className="mt-4 text-xl font-bold text-navy-deep">Bạn chưa định giá xe nào</h2>
             <p className="mt-2 text-sm text-mute">Sau mỗi lần dự đoán thành công, kết quả sẽ xuất hiện ở đây để bạn so sánh.</p>
             <ButtonLink to="/dinh-gia" className="mt-6">Định giá ô tô ngay</ButtonLink>
           </div>
         ) : (
           <>
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <p className="text-sm text-mute">{list.length} lần dự đoán</p>
+            <div className="card mb-5 flex items-center justify-between gap-4 px-5 py-3">
+              <p className="text-sm font-semibold text-ink">{list.length} lần dự đoán gần nhất</p>
               <Button variant="secondary" onClick={() => setConfirm(true)}><Trash2 className="size-4" aria-hidden />Xóa toàn bộ lịch sử</Button>
             </div>
             <ul className="grid gap-5 md:grid-cols-2">
               {list.map((e) => (
-                <li key={e.id} className="card p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-3xl font-extrabold text-navy-deep">{formatVnd(e.result.price)}</p>
-                      <p className="mt-0.5 text-xs text-mute">{e.result.model_label} · phiên bản {e.result.model_version} · {formatDateTime(e.createdAt)}</p>
+                <li key={e.id} className="card overflow-hidden">
+                  <div className="price-hero relative flex items-start justify-between gap-3 p-5 text-white">
+                    <div className="glow pointer-events-none absolute inset-0 opacity-60" aria-hidden />
+                    <div className="relative">
+                      <p className="text-3xl font-extrabold tracking-tight">{formatVnd(e.result.price)}</p>
+                      <p className="mt-1 text-xs text-white/70">{e.result.model_label} · phiên bản {e.result.model_version} · {formatDateTime(e.createdAt)}</p>
                     </div>
-                    <Button variant="ghost" className="-mr-2 px-2" aria-label="Xóa lần dự đoán này" onClick={() => { removeHistory(e.id); toast.notify('info', 'Đã xóa một mục khỏi lịch sử.') }}><Trash2 className="size-4" aria-hidden /></Button>
+                    <Button variant="ghost" className="relative -mr-2 px-2 text-white hover:bg-white/15" aria-label="Xóa lần dự đoán này" onClick={() => { removeHistory(e.id); toast.notify('info', 'Đã xóa một mục khỏi lịch sử.') }}><Trash2 className="size-4" aria-hidden /></Button>
                   </div>
-                  <div className="mt-4 border-t border-line pt-4"><InputSummary features={meta.data?.features} payload={e.payload} /></div>
-                  {e.result.warnings.length > 0 && <p className="mt-3 text-xs text-warn">Có {e.result.warnings.length} cảnh báo khi dự đoán.</p>}
+                  <div className="p-5"><InputSummary features={meta.data?.features} payload={e.payload} /></div>
+                  {e.result.warnings.length > 0 && <p className="border-t border-warn/20 bg-warn-soft px-5 py-2.5 text-xs font-medium text-warn">Có {e.result.warnings.length} cảnh báo khi dự đoán.</p>}
                 </li>
               ))}
             </ul>

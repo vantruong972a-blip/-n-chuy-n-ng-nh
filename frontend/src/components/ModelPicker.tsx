@@ -1,3 +1,4 @@
+import { Check, Cpu } from 'lucide-react'
 import type { MetaResponse, StrengthSegment, StrengthsResponse } from '../types/api'
 
 const TYPE_LABEL: Record<string, string> = { 'giá dự đoán': 'Dải giá', 'tuổi xe': 'Tuổi xe', 'số km': 'Số km' }
@@ -37,14 +38,23 @@ export function ModelPicker({ meta, value, onChange, disabled, strengths }: Prop
   }
 
   return (
-    <fieldset className="card p-5 sm:p-6" disabled={disabled}>
-      <legend className="label px-0">Chọn mô hình dự đoán</legend>
-      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+    <fieldset className="card overflow-hidden" disabled={disabled}>
+      <legend className="sr-only">Chọn mô hình dự đoán</legend>
+      <div className="card-head bg-gradient-to-r from-azure-soft/60 to-white" aria-hidden>
+        <span className="icon-tile bg-white"><Cpu className="size-5" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-bold leading-tight text-navy-deep">Chọn mô hình dự đoán</p>
+          <p className="mt-0.5 text-sm text-mute">Để “Tự động” nếu bạn chưa rõ nên dùng mô hình nào.</p>
+        </div>
+      </div>
+      <div className="card-body">
+      <div className="grid gap-3 sm:grid-cols-2">
         {options.map((o) => {
           const groups = o.key ? leadingGroups(segs, o.key) : []
           return (
-            <label key={o.key || 'auto'} className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors ${value === o.key ? 'border-navy bg-azure-soft' : 'border-line hover:border-ink/30'}`}>
-              <input type="radio" name="mo-hinh" className="mt-1 size-4 shrink-0 accent-navy" checked={value === o.key} onChange={() => onChange(o.key)} />
+            <label key={o.key || 'auto'} className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-azure ${value === o.key ? 'border-navy bg-azure-soft/70 shadow-[0_0_0_1px_var(--color-navy)]' : 'border-line bg-white hover:-translate-y-px hover:border-navy/40 hover:shadow-sm'}`}>
+              <input type="radio" name="mo-hinh" className="peer sr-only" checked={value === o.key} onChange={() => onChange(o.key)} />
+              <span aria-hidden className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2 ${value === o.key ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}>{value === o.key && <Check className="size-3" strokeWidth={3} />}</span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink">{o.title}{o.role ? <span className="font-normal text-mute"> – {o.role}</span> : null}</span>
                 <span className="mt-0.5 block text-xs text-mute">{o.text}</span>
@@ -69,12 +79,12 @@ export function ModelPicker({ meta, value, onChange, disabled, strengths }: Prop
           )
         })}
       </div>
-      <p className="mt-3 text-xs text-mute">Dù chọn mô hình nào, kết quả vẫn hiển thị giá của cả ba mô hình để so sánh.</p>
+      <p className="mt-4 text-xs text-mute">Dù chọn mô hình nào, kết quả vẫn hiển thị giá của cả ba mô hình để so sánh.</p>
       {detail.length > 0 && (
-        <details className="mt-3 rounded-lg border border-line p-3">
+        <details className="mt-3 rounded-xl border border-line bg-haze/40 p-3">
           <summary className="cursor-pointer text-sm font-semibold text-navy">Xem sai số từng mô hình theo thông tin của xe</summary>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left text-sm">
+            <table className="data w-full min-w-[480px] text-left text-sm">
               <caption className="sr-only">Sai số log (RMSLE) của từng mô hình theo nhóm xe trên tập kiểm định; nhỏ hơn là tốt hơn.</caption>
               <thead className="text-xs text-mute">
                 <tr>
@@ -104,6 +114,7 @@ export function ModelPicker({ meta, value, onChange, disabled, strengths }: Prop
           <p className="mt-2 text-xs text-mute">Chỉ số là sai số log (RMSLE), nhỏ hơn là tốt hơn; ô nền xanh, chữ đậm là mô hình thấp nhất trong nhóm. Đo trên các xe kiểm định không dùng để huấn luyện. Chênh lệch giữa các mô hình thường nhỏ vì dữ liệu giá rao có nhiễu, nên đây là tham khảo, không phải cam kết.</p>
         </details>
       )}
+      </div>
     </fieldset>
   )
 }

@@ -88,16 +88,32 @@ function Result({ meta, payload, result, listedPrice }: { meta: MetaResponse; pa
   return (
     <div className="pop-in space-y-6">
       <div>
-        <p className="text-sm text-mute">Giá tham khảo theo {result.model_label}</p>
-        <p className="mt-1 text-5xl font-extrabold tracking-tight text-navy-deep sm:text-6xl">{formatVnd(chosen?.price ?? result.price)}</p>
-        <p className="mt-1 text-sm text-mute">{formatVndFull(result.price)}</p>
+        <div className="price-hero relative overflow-hidden rounded-2xl p-6 text-white sm:p-7">
+          <div className="glow pointer-events-none absolute inset-0 opacity-70" aria-hidden />
+          <div className="relative">
+            <p className="text-sm text-white/70">Giá tham khảo theo {result.model_label}</p>
+            <p className="mt-1 text-5xl font-extrabold tracking-tight sm:text-6xl">{formatVnd(chosen?.price ?? result.price)}</p>
+            <p className="mt-1 text-sm text-white/60">{formatVndFull(result.price)}</p>
+            {result.range && (
+              <div className="mt-6">
+                <div className="relative h-2 rounded-full bg-white/15" role="img" aria-label={`Khoảng hợp lý từ ${formatVnd(result.range.low)} đến ${formatVnd(result.range.high)}`}>
+                  <span className="absolute inset-0 rounded-full bg-white/35" />
+                  <span className="absolute -top-1 size-4 -translate-x-1/2 rounded-full border-2 border-white bg-azure shadow"
+                    style={{ left: `${Math.min(100, Math.max(0, ((chosen?.price ?? result.price) - result.range.low) / Math.max(1, result.range.high - result.range.low) * 100))}%` }} />
+                </div>
+                <div className="mt-2 flex justify-between text-sm font-semibold">
+                  <span>{formatVnd(result.range.low)}</span>
+                  <span className="text-xs font-normal text-white/60">khoảng hợp lý ~{Math.round(result.range.level * 100)}%</span>
+                  <span>{formatVnd(result.range.high)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         {result.range && (
-          <p className="mt-3 text-sm text-ink-soft">
-            Khoảng hợp lý (~{Math.round(result.range.level * 100)}%): <strong className="text-navy-deep">{formatVnd(result.range.low)} – {formatVnd(result.range.high)}</strong>
-            <span className="block text-xs leading-relaxed text-mute">Đo trên {result.range.n.toLocaleString('vi-VN')} xe thuộc dải giá {result.range.band} mà mô hình chưa từng học. Khoảng này nói về sai số mô hình so với giá niêm yết, không phải giá giao dịch.</span>
-          </p>
+          <p className="mt-3 text-xs leading-relaxed text-mute">Đo trên {result.range.n.toLocaleString('vi-VN')} xe thuộc dải giá {result.range.band} mà mô hình chưa từng học. Khoảng này nói về sai số mô hình so với giá niêm yết, không phải giá giao dịch.</p>
         )}
-        <p className="mt-3 text-xs leading-relaxed text-mute">{result.unit_note}</p>
+        <p className="mt-2 text-xs leading-relaxed text-mute">{result.unit_note}</p>
       </div>
       {spread > 1.3 && (
         <Alert kind="warn" title="Các mô hình đưa ra giá khá khác nhau">
@@ -207,7 +223,7 @@ export default function ValuationPage() {
       <PageHeader title="Định giá ô tô">
         Nhập thông tin xe để nhận giá tham khảo từ ba mô hình học máy. Chỉ cần hãng, dòng xe và năm sản xuất; càng nhiều thông tin, dự đoán càng sát.
       </PageHeader>
-      <div className="container-page grid gap-8 py-10 lg:grid-cols-[1.15fr_1fr] lg:items-start">
+      <div className="container-page lift grid gap-6 pb-12 lg:grid-cols-[1.15fr_1fr] lg:items-start">
         {prefill.label && (
           <div className="lg:col-span-2">
             <Alert kind="info" title="Đã điền sẵn từ tin rao">
@@ -225,10 +241,17 @@ export default function ValuationPage() {
           {m && grouped?.map((g, gi) => {
             const Icon = GROUP_ICONS[gi % GROUP_ICONS.length]
             return (
-            <fieldset key={g.title} className="card p-5 sm:p-6">
-              <legend className="float-left mb-1 w-full px-0"><span className="flex items-center gap-3 text-lg font-bold text-navy-deep"><span className="icon-tile"><Icon className="size-5" aria-hidden /></span>{g.title}</span></legend>
-              <p className="clear-both mb-4 pl-[3.25rem] text-sm text-mute">{g.description}</p>
-              <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+            <fieldset key={g.title} className="card overflow-hidden">
+              <legend className="sr-only">{g.title}</legend>
+              <div className="card-head bg-gradient-to-r from-azure-soft/60 to-white" aria-hidden>
+                <span className="icon-tile bg-white"><Icon className="size-5" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-lg font-bold leading-tight text-navy-deep">{g.title}</p>
+                  <p className="mt-0.5 text-sm text-mute">{g.description}</p>
+                </div>
+                <span className="hidden rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-navy ring-1 ring-line sm:block">{gi + 1}/{grouped.length}</span>
+              </div>
+              <div className="card-body grid gap-x-5 gap-y-4 sm:grid-cols-2">
                 {g.features.map((f) => (
                   <FormField key={f.name} feature={f} meta={m} value={values[f.name] ?? ''} error={errors[f.name]} disabled={busy} brand={values.brand ?? ''} onChange={setField} />
                 ))}
@@ -252,12 +275,12 @@ export default function ValuationPage() {
           <p className="text-xs text-mute"><span className="text-bad">*</span> Trường bắt buộc.</p>
         </form>
 
-        <aside ref={resultRef} className="card scroll-mt-24 p-5 sm:p-7 lg:sticky lg:top-24" aria-live="polite" aria-label="Kết quả định giá">
+        <aside ref={resultRef} className="card scroll-mt-24 p-4 sm:p-6 lg:sticky lg:top-24" aria-live="polite" aria-label="Kết quả định giá">
           {busy && <div className="space-y-4" aria-busy><Skeleton className="h-6 w-1/2" /><Skeleton className="h-16 w-3/4" /><Skeleton className="h-36" /></div>}
           {!busy && done && m && <Result meta={m} payload={done.payload} result={done.result} listedPrice={prefill.listedPrice} />}
           {!busy && !done && (
             <div className="py-8 text-center">
-              <CheckCircle2 className="mx-auto size-10 text-navy/30" aria-hidden />
+              <span className="icon-tile mx-auto size-16 rounded-2xl"><CheckCircle2 className="size-8" aria-hidden /></span>
               <h2 className="mt-4 text-lg font-bold text-navy-deep">Kết quả sẽ hiện ở đây</h2>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-mute">Điền thông tin xe rồi bấm “Dự đoán giá xe”. Giá do máy chủ tính, không phải ước lượng trên trình duyệt.</p>
               <p className="mx-auto mt-4 flex max-w-xs items-start gap-2 text-left text-xs leading-relaxed text-mute">

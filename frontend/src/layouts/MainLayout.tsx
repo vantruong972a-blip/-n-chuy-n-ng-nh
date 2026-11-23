@@ -35,9 +35,9 @@ function Header() {
     return () => clearTimeout(t)
   }, [pathname])
   const link = ({ isActive }: { isActive: boolean }) =>
-    `rounded-lg px-3 py-2 text-[15px] font-medium transition-colors ${isActive ? 'bg-azure-soft text-navy' : 'text-ink-soft hover:bg-haze hover:text-ink'}`
+    `relative rounded-lg px-3 py-2 text-[15px] font-medium transition-colors ${isActive ? 'bg-azure-soft text-navy after:absolute after:inset-x-3 after:-bottom-[13px] after:h-[3px] after:rounded-full after:bg-azure' : 'text-ink-soft hover:bg-haze hover:text-ink'}`
   return (
-    <header className="sticky top-0 z-40 border-b border-line bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line bg-white/90 shadow-[0_6px_18px_-14px_rgb(10_36_99/0.35)] backdrop-blur">
       <div className="container-page flex h-16 items-center justify-between gap-4">
         <Link to="/" aria-label={`${SITE.name} – về trang chủ`} className="rounded-lg"><Logo /></Link>
         <nav aria-label="Điều hướng chính" className="hidden items-center gap-1 lg:flex">
@@ -103,7 +103,7 @@ export function MainLayout() {
         Bỏ qua điều hướng
       </a>
       <Header />
-      <main id="noi-dung" tabIndex={-1} className={`min-h-[60vh] outline-none ${pathname === '/' ? 'bg-white' : 'bg-[#f5f7fa]'}`}>
+      <main id="noi-dung" tabIndex={-1} className={`min-h-[60vh] outline-none ${pathname === '/' ? 'bg-white' : 'page-bg'}`}>
         <Outlet />
       </main>
       <Footer />

@@ -1,5 +1,5 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
-import { CheckCircle2, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react'
+import { CheckCircle2, Info, Loader2, TriangleAlert, XCircle, type LucideIcon } from 'lucide-react'
 import { Link, type LinkProps } from 'react-router-dom'
 import { CarOutline } from './CarBlueprint'
 
@@ -57,12 +57,27 @@ export const Skeleton = ({ className = '' }: { className?: string }) => <div cla
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <header className="grid-bg relative overflow-hidden bg-navy-deep text-white">
+      <div className="glow pointer-events-none absolute inset-0" aria-hidden />
       <CarOutline className="pointer-events-none absolute -right-8 top-1/2 hidden w-[480px] -translate-y-1/2 opacity-[0.12] lg:block" />
       <div className="container-page relative py-10 sm:py-14">
         <h1 className="text-3xl font-extrabold sm:text-4xl">{title}</h1>
         {children && <p className="mt-3 max-w-2xl text-base leading-relaxed text-white/75">{children}</p>}
       </div>
     </header>
+  )
+}
+
+/** Đầu thẻ có ô biểu tượng, dùng chung cho các khối nội dung chính. */
+export function CardHead({ icon: Icon, title, children, aside }: { icon: LucideIcon; title: string; children?: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="card-head">
+      <span className="icon-tile"><Icon className="size-5" aria-hidden /></span>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-lg font-bold leading-tight text-navy-deep">{title}</h2>
+        {children && <p className="mt-0.5 text-sm text-mute">{children}</p>}
+      </div>
+      {aside}
+    </div>
   )
 }
 

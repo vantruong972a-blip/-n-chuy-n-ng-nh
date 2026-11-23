@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { SearchX, SlidersHorizontal, X } from 'lucide-react'
+import { Check, SearchX, SlidersHorizontal, X } from 'lucide-react'
 import { CarCard } from '../components/CarCard'
 import { Combobox, type ComboOption } from '../components/Combobox'
 import { NotIntegrated } from '../components/NotIntegrated'
@@ -127,7 +127,7 @@ export default function RecommendPage() {
   return (
     <>
       <PageHeader title="Gợi ý xe phù hợp">Chọn ngân sách và nhu cầu, hệ thống sẽ tìm những xe có đặc điểm và mức giá tương đồng.</PageHeader>
-      <div className="container-page space-y-8 py-10">
+      <div className="container-page lift space-y-8 pb-12">
         {cap.loading ? <Skeleton className="h-24" /> : available
           ? null
           : (
@@ -138,11 +138,12 @@ export default function RecommendPage() {
             </NotIntegrated>
           )}
 
-        <form onSubmit={submit} noValidate className="card p-5 sm:p-7" aria-label="Bộ lọc tìm xe">
-          <div className="flex items-center gap-3">
-            <span className="icon-tile"><SlidersHorizontal className="size-5" aria-hidden /></span>
+        <form onSubmit={submit} noValidate className="card overflow-hidden" aria-label="Bộ lọc tìm xe">
+          <div className="card-head bg-gradient-to-r from-azure-soft/60 to-white">
+            <span className="icon-tile bg-white"><SlidersHorizontal className="size-5" aria-hidden /></span>
             <div><h2 className="text-lg font-bold leading-tight text-navy-deep">Tiêu chí của bạn</h2><p className="text-sm text-mute">Bỏ trống những gì bạn chưa quan tâm.</p></div>
           </div>
+          <div className="card-body">
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <span className="text-sm text-mute">Chọn nhanh ngân sách:</span>
             {BUDGETS.map((b) => (
@@ -196,14 +197,16 @@ export default function RecommendPage() {
                 ['rule_based', 'Lọc theo tiêu chí và chấm điểm', 'Chỉ giữ xe khớp mọi tiêu chí bạn chọn, xếp theo độ mới, số km và mức giá.'],
                 ['knn', 'Xe tương đồng về giá và đặc điểm (KNN)', 'Tìm các xe gần nhất trong không gian đặc trưng.'],
               ] as const).map(([v, t, d]) => (
-                <label key={v} className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition-colors ${f.method === v ? 'border-navy bg-azure-soft' : 'border-line hover:border-ink/30'}`}>
-                  <input type="radio" name="cach" className="mt-1 size-4 accent-navy" checked={f.method === v} onChange={() => set('method', v)} />
+                <label key={v} className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition has-[:focus-visible]:outline has-[:focus-visible]:outline-[3px] has-[:focus-visible]:outline-azure ${f.method === v ? 'border-navy bg-azure-soft/70 shadow-[0_0_0_1px_var(--color-navy)]' : 'border-line bg-white hover:-translate-y-px hover:border-navy/40 hover:shadow-sm'}`}>
+                  <input type="radio" name="cach" className="sr-only" checked={f.method === v} onChange={() => set('method', v)} />
+                  <span aria-hidden className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-2 ${f.method === v ? 'border-navy bg-navy text-white' : 'border-line bg-white'}`}>{f.method === v && <Check className="size-3" strokeWidth={3} />}</span>
                   <span><span className="block text-sm font-semibold text-ink">{t}</span><span className="block text-xs text-mute">{d}</span></span>
                 </label>
               ))}
             </div>
           </fieldset>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          </div>
+          <div className="flex flex-col gap-3 border-t border-line/70 bg-haze/60 px-5 py-4 sm:flex-row sm:px-6">
             <Button type="submit" loading={busy} className="h-12 px-8 text-base">Tìm xe phù hợp</Button>
             <Button variant="ghost" onClick={() => { setF(EMPTY); setErrors({}); setItems(null); setMsg(null); setInfo({ notes: [], suggestions: [], field: null }) }}>Xóa bộ lọc</Button>
           </div>
