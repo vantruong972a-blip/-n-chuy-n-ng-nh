@@ -16,7 +16,7 @@ export default function HistoryPage() {
   const [confirm, setConfirm] = useState(false)
   return (
     <>
-      <PageHeader title="Lịch sử dự đoán">Các lần định giá bạn đã thực hiện trên trình duyệt này, lưu cục bộ trên máy bạn (tối đa 50 lần gần nhất). Dữ liệu không được gửi đi đâu khác.</PageHeader>
+      <PageHeader title="Lịch sử dự đoán">Các lần định giá gần nhất của bạn, lưu trên trình duyệt này (tối đa 50 lần).</PageHeader>
       <div className="container-page lift pb-12">
         {list.length === 0 ? (
           <div className="card mx-auto max-w-lg p-10 text-center">

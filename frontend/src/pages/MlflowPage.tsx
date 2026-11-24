@@ -87,7 +87,7 @@ export default function MlflowPage() {
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <h2 id="runs" className="text-xl font-bold text-navy-deep">Các lần huấn luyện</h2>
-                  <p className="mt-1 text-sm text-mute">Thí nghiệm “{d.experiment?.name}”. Mô hình được chọn theo RMSE trên tập validation; tập test chỉ để báo cáo.</p>
+                  <p className="mt-1 text-sm text-mute">Thí nghiệm “{d.experiment?.name}”. Mô hình được chọn theo RMSLE trên tập validation; tập test chỉ để báo cáo.</p>
                 </div>
                 {versions.length > 1 && (
                   <label className="text-sm font-semibold text-ink">Bản huấn luyện

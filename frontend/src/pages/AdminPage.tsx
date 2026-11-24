@@ -70,7 +70,7 @@ function Performance() {
         </table>
       </div>
       <p className="text-xs leading-relaxed text-mute">
-        Đo trên {formatInt(d.n_test)} xe kiểm tra giữ riêng (chia {d.split}; {d.split_strategy ?? 'chia theo nhóm tin rao'}). Mô hình tốt nhất được chọn theo RMSE trên tập kiểm định, không chọn theo tập kiểm tra. Đơn vị tiền: triệu đồng. {d.unit_note}
+        Đo trên {formatInt(d.n_test)} xe kiểm tra giữ riêng (chia {d.split}; {d.split_strategy ?? 'chia theo nhóm tin rao'}). Mô hình tốt nhất được chọn theo RMSLE trên tập kiểm định, không chọn theo tập kiểm tra. Đơn vị tiền: triệu đồng. {d.unit_note}
       </p>
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Sai số tuyệt đối trung bình (MAE) và căn sai số bình phương (RMSE), triệu đồng">
@@ -223,7 +223,7 @@ function Registry() {
             {Object.entries(i.libraries).map(([k, v]) => <><dt key={`k${k}`} className="text-mute">{k}</dt><dd key={`v${k}`}>{v ?? 'không dùng'}</dd></>)}
           </dl>
           <p className="mt-4 border-t border-line pt-3 text-xs leading-relaxed text-mute">
-            Mô hình được lưu theo thư mục phiên bản (<code>models/versions</code>) và chỉ được thay khi qua kiểm tra; bản cũ giữ ở <code>models/archive</code>. Các lần chạy được ghi bằng MLflow Tracking, và mô hình đang phục vụ được đăng ký vào MLflow Model Registry (bí danh “champion”); xem ở trang <a className="font-semibold text-navy underline" href="/mlflow">Theo dõi MLflow</a>. Cột “Trạng thái” ở đây phản ánh mô hình đang được API nạp.
+            Mô hình được lưu theo phiên bản (<code>models/versions</code>); bản cũ giữ ở <code>models/archive</code>. Mô hình đang phục vụ được đăng ký vào MLflow Model Registry (bí danh “champion”); xem ở trang <a className="font-semibold text-navy underline" href="/mlflow">Theo dõi MLflow</a>.
           </p>
         </Panel>
       </div>
@@ -248,7 +248,7 @@ export default function AdminPage() {
   }
   return (
     <>
-      <PageHeader title="Quản trị hệ thống">Theo dõi chất lượng mô hình, tình trạng máy chủ và độ lệch dữ liệu. Trang này dành cho người vận hành đồ án; số liệu lấy trực tiếp từ API, không có dữ liệu minh họa.</PageHeader>
+      <PageHeader title="Quản trị hệ thống">Theo dõi chất lượng mô hình, tình trạng máy chủ và độ lệch dữ liệu.</PageHeader>
       <div className="container-page lift pb-12">
         <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <Health tick={tick} />

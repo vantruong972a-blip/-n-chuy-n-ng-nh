@@ -55,14 +55,13 @@ export default function CarDetailPage() {
               </dl>
               <ButtonLink to={valuationLink(car)} className="mt-6 h-12 w-full text-base">Định giá xe này bằng mô hình</ButtonLink>
               <ButtonLink to={`/goi-y?like=${encodeURIComponent(car.id)}`} variant="secondary" className="mt-3 h-12 w-full text-base">Gợi ý xe giống xe này</ButtonLink>
-              <p className="mt-2 text-xs leading-relaxed text-mute">Điền sẵn thông tin xe sang trang Định giá, rồi so giá niêm yết với giá do mô hình dự đoán. Giá niêm yết khoảng năm 2022.</p>
             </div>
           </div>
         )}
         {car && car.similar && car.similar.length > 0 && (
           <section aria-labelledby="xe-tuong-tu" className="pt-4">
             <h2 id="xe-tuong-tu" className="text-xl font-bold text-navy-deep">Xe tương tự</h2>
-            <p className="mb-4 mt-1 text-sm text-mute">Các tin có giá và đặc điểm gần nhất (KNN), không tính chính xe này và các tin đăng lại của nó.</p>
+            <p className="mb-4 mt-1 text-sm text-mute">Các xe có giá và đặc điểm gần nhất.</p>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{car.similar.map((c) => <CarCard key={c.id} car={c} />)}</div>
           </section>
         )}

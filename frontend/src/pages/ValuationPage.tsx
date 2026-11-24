@@ -282,7 +282,7 @@ export default function ValuationPage() {
             <div className="py-8 text-center">
               <span className="icon-tile mx-auto size-16 rounded-2xl"><CheckCircle2 className="size-8" aria-hidden /></span>
               <h2 className="mt-4 text-lg font-bold text-navy-deep">Kết quả sẽ hiện ở đây</h2>
-              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-mute">Điền thông tin xe rồi bấm “Dự đoán giá xe”. Giá do máy chủ tính, không phải ước lượng trên trình duyệt.</p>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-mute">Điền thông tin xe rồi bấm “Dự đoán giá xe”.</p>
               <p className="mx-auto mt-4 flex max-w-xs items-start gap-2 text-left text-xs leading-relaxed text-mute">
                 <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warn" aria-hidden />Đây là giá rao khoảng năm 2022, chỉ để tham khảo.
               </p>

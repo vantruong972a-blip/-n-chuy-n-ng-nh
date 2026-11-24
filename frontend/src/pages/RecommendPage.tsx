@@ -225,7 +225,6 @@ export default function RecommendPage() {
                   <button key={sg} type="button" className="min-h-9 rounded-full border border-line bg-white px-3 text-sm font-semibold text-navy hover:border-navy hover:bg-azure-soft"
                     onClick={() => { set(info.field as 'brand' | 'model', sg); setInfo({ notes: [], suggestions: [], field: null }); setItems(null) }}>{sg}</button>
                 ))}
-                <span className="text-xs text-mute">(bấm để điền vào bộ lọc, rồi bấm “Tìm xe phù hợp”)</span>
               </p>
             )}
           </Alert>
@@ -239,7 +238,7 @@ export default function RecommendPage() {
           <div className="rounded-[var(--radius-card)] border border-dashed border-line bg-white/60 p-10 text-center">
             <SearchX className="mx-auto size-9 text-navy/30" aria-hidden />
             <h2 className="mt-3 text-lg font-bold text-navy-deep">Chưa có kết quả</h2>
-            <p className="mx-auto mt-1 max-w-md text-sm text-mute">Chọn ngân sách hoặc hãng xe ở trên rồi bấm “Tìm xe phù hợp”. Bạn có thể gõ tên hãng để lọc nhanh danh sách.</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-mute">Chọn ngân sách hoặc hãng xe ở trên rồi bấm “Tìm xe phù hợp”.</p>
           </div>
         )}
         {items && items.length === 0 && (
@@ -247,7 +246,6 @@ export default function RecommendPage() {
         )}
         {items && items.length > 0 && (
           <section aria-label="Kết quả gợi ý"><h2 className="mb-4 text-xl font-bold text-navy-deep">{total > items.length ? `${items.length} xe phù hợp nhất trong ${total.toLocaleString('vi-VN')} xe khớp bộ lọc` : `${items.length} xe phù hợp`}</h2>
-            <p className="-mt-2 mb-4 text-sm text-mute">Giá là giá niêm yết trên Bonbanh/Chợ Tốt, thu thập khoảng năm 2022; mỗi xe chỉ hiện một lần dù được đăng lại nhiều tin.</p>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{items.map((c) => <CarCard key={c.id} car={c} />)}</div></section>
         )}
       </div>
