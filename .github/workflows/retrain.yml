@@ -1,0 +1,57 @@
+name: Retrain (huấn luyện lại, không tự triển khai)
+
+# Chạy tay (Actions > Retrain > Run workflow) hoặc tự động vào 02:00 UTC ngày 1 hằng tháng.
+# Workflow chỉ huấn luyện ứng viên và tải kết quả lên Artifacts. KHÔNG thay mô hình đang phục vụ API:
+# người quyết định sau khi xem báo cáo (python scripts/compare_candidate.py rồi đăng ký bản mới).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "fast = chạy thử nhanh (lưới nhỏ); full = huấn luyện đầy đủ (lâu, có thể chạm giới hạn 6 giờ)"
+        type: choice
+        options: [fast, full]
+        default: fast
+  schedule:
+    - cron: "0 2 1 * *"
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Tải dữ liệu và đối chiếu SHA-256
+        run: python scripts/download_data.py
+      - name: Làm sạch dữ liệu
+        run: python src/preprocess.py
+      - name: Kiểm tra chất lượng dữ liệu (dừng nếu lỗi)
+        run: python -m pytest -q tests/test_data_quality.py
+      - name: Huấn luyện ứng viên (không thay mô hình đang chạy)
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "full" ]; then
+            python src/train_supervised.py --no-promote --no-mlflow
+          else
+            python src/train_supervised.py --fast --no-promote --no-mlflow
+          fi
+      - name: So sánh với mô hình đang chạy (nếu có)
+        run: |
+          if [ -f models/model_info.json ]; then
+            python scripts/compare_candidate.py
+          else
+            echo "Runner không có mô hình đang phục vụ (models/*.joblib không nằm trong git); hãy so sánh trên máy bạn bằng scripts/compare_candidate.py."
+          fi
+      - name: Tải kết quả lên Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrain-${{ github.run_number }}
+          path: |
+            reports/
+            models/versions/
+            Data/processed/data_info.json
+            Data/processed/cleaning_report.json
+          retention-days: 30
